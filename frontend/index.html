@@ -233,7 +233,8 @@
         const headerspadrao = {
             "apikey": API_KEY,
             "Authorization": `Bearer ${API_KEY}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
         };
 
         async function registrarLog(acao) {
@@ -251,12 +252,12 @@
             e.preventDefault(); 
             try { 
                 const email = document.getElementById('login-email').value.trim(), senha = document.getElementById('login-senha').value; 
-                const resposta = await fetch(`${BASE_URL}/usuarios_sigee?email=eq.${encodeURIComponent(email)}`, { method: "GET", headers: headerspadrao }); 
+                const resposta = await fetch(`${BASE_URL}/usuarios_sigee?email=eq.${encodeURIComponent(email)}`, { method: "GET", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } }); 
                 const data = await resposta.json(); 
                 if (!data || data.length === 0 || data[0].senha_hash !== senha) { alert("Credenciais incorretas."); return; } 
                 usuarioLogado = data[0]; 
                 entrarNoDashboard(); 
-            } catch { alert("Erro de conexão."); } 
+            } catch { alert("Erro de conexão com o banco."); } 
         }
         
         function entrarNoDashboard() { 
@@ -317,20 +318,24 @@
 
         async function salvarDadosEscolaManual(event) {
             event.preventDefault();
-            const payload = { cod_mec: document.getElementById('lat-cod-mec').value.trim(), nome_escola: document.getElementById('lat-nome').value.trim(), municipio: document.getElementById('lat-municipio').value.trim(), nte_id: parseInt(document.getElementById('lat-nte').value), dependencia_adm: document.getElementById('lat-dependencia').value, situacao_funcional: document.getElementById('lat-situacao').value, acervo: document.getElementById('lat-acervo').value, status_acervo: document.getElementById('lat-status-acervo').value, local_acervo: document.getElementById('lat-local').value.trim(), assinatura: document.getElementById('lat-assinatura').value };
+            const payload = { cod_mec: document.getElementById('lat-cod-mec').value.trim(), nome_escola: document.getElementById('lat-nome').value.trim(), municipio: document.getElementById('lat-municipio').value.trim(), nte_id: document.getElementById('lat-nte').value ? parseInt(document.getElementById('lat-nte').value) : null, dependencia_adm: document.getElementById('lat-dependencia').value, situacao_funcional: document.getElementById('lat-situacao').value, acervo: document.getElementById('lat-acervo').value, status_acervo: document.getElementById('lat-status-acervo').value, local_acervo: document.getElementById('lat-local').value.trim(), assinatura: document.getElementById('lat-assinatura').value };
             try {
                 const res = await fetch(`${BASE_URL}/escolas_sigee`, { method: "POST", headers: headerspadrao, body: JSON.stringify(payload) });
-                if (!res.ok) throw new Error();
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    alert(`Erro do Supabase: ${errBody.message || errBody.hint || 'Estrutura inválida'}`);
+                    return;
+                }
                 registrarLog(`Criada escola manual: ${payload.nome_escola}`);
                 alert("Escola registrada com sucesso!");
                 document.getElementById('form-cadastro-school-lateral').reset();
                 paginaAtualEscola = 0; carregarListaEscolas();
-            } catch { alert("Erro ao cadastrar escola."); }
+            } catch { alert("Erro de rede ao cadastrar escola."); }
         }
 
         async function carregarListaUsuarios() {
             try {
-                const resposta = await fetch(`${BASE_URL}/usuarios_sigee?order=nome.asc`, { method: "GET", headers: headerspadrao });
+                const resposta = await fetch(`${BASE_URL}/usuarios_sigee?order=nome.asc`, { method: "GET", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
                 const dados = await resposta.json();
                 const corpo = document.getElementById('tabela-usuarios-corpo');
                 corpo.innerHTML = "";
@@ -348,20 +353,25 @@
 
         async function alternarStatusUsuario(email, statusAtual) {
             try {
+                // CORREÇÃO CRUCIAL: Filtra por email (eq.${email}) porque a tabela não possui coluna id
                 const res = await fetch(`${BASE_URL}/usuarios_sigee?email=eq.${encodeURIComponent(email)}`, { 
                     method: "PATCH", 
                     headers: headerspadrao, 
                     body: JSON.stringify({ ativo: !statusAtual }) 
                 });
-                if(!res.ok) throw new Error();
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    alert(`Erro do Supabase ao atualizar usuário:\n${errBody.message || 'Erro inesperado'}`);
+                    return;
+                }
                 registrarLog(`Alterado status do usuário e-mail ${email}`);
                 carregarListaUsuarios();
-            } catch { alert("Erro ao atualizar dados no Supabase. Verifique se o campo mapeado confere."); }
+            } catch { alert("Erro de comunicação com o servidor."); }
         }
 
         async function carregarLogsDoBanco() {
             try {
-                const resposta = await fetch(`${BASE_URL}/logs_sigee?order=criado_em.desc&limit=100`, { method: "GET", headers: headerspadrao });
+                const resposta = await fetch(`${BASE_URL}/logs_sigee?order=criado_em.desc&limit=100`, { method: "GET", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
                 const dados = await resposta.json();
                 const corpo = document.getElementById('tabela-logs-corpo');
                 corpo.innerHTML = "";
@@ -385,7 +395,7 @@
             let url = `${BASE_URL}/escolas_sigee?order=nome_escola.asc&limit=${limitePorPagina}&offset=${offset}`; 
             if (filtroBuscaTermo) url += `&or=(nome_escola.ilike.*${encodeURIComponent(filtroBuscaTermo)}*,cod_mec.ilike.*${encodeURIComponent(filtroBuscaTermo)}*)`; 
             try { 
-                const resposta = await fetch(url, { method: "GET", headers: { ...headerspadrao, "Prefer": "count=exact" } }); 
+                const resposta = await fetch(url, { method: "GET", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Prefer": "count=exact" } }); 
                 listaEscolasLocal = await resposta.json(); corpo.innerHTML = ""; 
                 const contentRange = resposta.headers.get("content-range"); 
                 let totalRegistros = contentRange ? parseInt(contentRange.split("/")[1]) : listaEscolasLocal.length; 
@@ -418,9 +428,14 @@
 
         async function salvarDadosEscolaModal(e) {
             e.preventDefault(); const codMec = document.getElementById('esc-cod-mec').value;
-            const payload = { nome_escola: document.getElementById('esc-nome').value, municipio: document.getElementById('esc-municipio').value, nte_id: parseInt(document.getElementById('esc-nte').value), dependencia_adm: document.getElementById('esc-dependencia').value, situacao_funcional: document.getElementById('esc-situacao').value, acervo: document.getElementById('esc-acervo').value, status_acervo: document.getElementById('esc-status-acervo').value, local_acervo: document.getElementById('esc-local').value, assinatura: document.getElementById('esc-assinatura').value };
+            const payload = { nome_escola: document.getElementById('esc-nome').value, municipio: document.getElementById('esc-municipio').value, nte_id: document.getElementById('esc-nte').value ? parseInt(document.getElementById('esc-nte').value) : null, dependencia_adm: document.getElementById('esc-dependencia').value, situacao_funcional: document.getElementById('esc-situacao').value, acervo: document.getElementById('esc-acervo').value, status_acervo: document.getElementById('esc-status-acervo').value, local_acervo: document.getElementById('esc-local').value, assinatura: document.getElementById('esc-assinatura').value };
             try { 
-                await fetch(`${BASE_URL}/escolas_sigee?cod_mec=eq.${codMec}`, { method: "PATCH", headers: headerspadrao, body: JSON.stringify(payload) }); 
+                const res = await fetch(`${BASE_URL}/escolas_sigee?cod_mec=eq.${codMec}`, { method: "PATCH", headers: headerspadrao, body: JSON.stringify(payload) }); 
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    alert(`Erro do Supabase ao editar escola: ${errBody.message || 'Verifique as colunas'}`);
+                    return;
+                }
                 registrarLog(`Editada escola MEC ${codMec}`);
                 fecharModalEscola(); carregarListaEscolas(); 
             } catch { alert("Erro ao salvar."); }
@@ -430,7 +445,12 @@
             event.preventDefault();
             const payload = { nome: document.getElementById('cad-nome').value.trim(), email: document.getElementById('cad-email').value.trim(), perfil: document.getElementById('cad-perfil').value, nte_id: document.getElementById('cad-nte').value ? parseInt(document.getElementById('cad-nte').value) : null, ativo: document.getElementById('cad-ativo').value === "true", senha_hash: "123456" };
             try {
-                await fetch(`${BASE_URL}/usuarios_sigee`, { method: "POST", headers: headerspadrao, body: JSON.stringify(payload) });
+                const res = await fetch(`${BASE_URL}/usuarios_sigee`, { method: "POST", headers: headerspadrao, body: JSON.stringify(payload) });
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    alert(`Erro do Supabase ao criar usuário: ${errBody.message || 'Verifique as colunas'}`);
+                    return;
+                }
                 registrarLog(`Criado usuário: ${payload.email}`);
                 document.getElementById('form-cadastro-usuario').reset(); carregarListaUsuarios();
             } catch { alert("Erro ao criar."); }
@@ -445,7 +465,7 @@
         }
         function mudarPaginaEscola(d) { paginaAtualEscola += d; carregarListaEscolas(); }
         function filtrarPorBusca() { clearTimeout(buscaTimeout); buscaTimeout = setTimeout(() => { filtroBuscaTermo = document.getElementById('busca-escola').value.trim(); paginaAtualEscola = 0; carregarListaEscolas(); }, 300); }
-        async function carregarGruposNtes() { try { const r = await fetch(`${BASE_URL}/ntes_sigee?order=numero.asc`, { method: "GET", headers: headerspadrao }); listaNtesLocal = await r.json(); const sCad = document.getElementById('cad-nte'), sDash = document.getElementById('dash-filtro-nte'), sLat = document.getElementById('lat-nte'), sEsc = document.getElementById('esc-nte'); sCad.innerHTML = '<option value="">Central</option>'; sDash.innerHTML = '<option value="GERAL">📊 VISÃO GERAL</option>'; sLat.innerHTML = '<option value="">Selecione...</option>'; sEsc.innerHTML = '<option value="">Selecione...</option>'; listaNtesLocal.forEach(n => { const o = `<option value="${n.numero}">${n.nome}</option>`; sCad.innerHTML += o; sDash.innerHTML += o; sLat.innerHTML += o; sEsc.innerHTML += o; }); } catch {} }
+        async function carregarGruposNtes() { try { const r = await fetch(`${BASE_URL}/ntes_sigee?order=numero.asc`, { method: "GET", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } }); listaNtesLocal = await r.json(); const sCad = document.getElementById('cad-nte'), sDash = document.getElementById('dash-filtro-nte'), sLat = document.getElementById('lat-nte'), sEsc = document.getElementById('esc-nte'); sCad.innerHTML = '<option value="">Central</option>'; sDash.innerHTML = '<option value="GERAL">📊 VISÃO GERAL</option>'; sLat.innerHTML = '<option value="">Selecione...</option>'; sEsc.innerHTML = '<option value="">Selecione...</option>'; listaNtesLocal.forEach(n => { const o = `<option value="${n.numero}">${n.nome}</option>`; sCad.innerHTML += o; sDash.innerHTML += o; sLat.innerHTML += o; sEsc.innerHTML += o; }); } catch {} }
         function atualizarDadosDashboard() { document.getElementById('dash-escolas').innerText = "42.115"; document.getElementById('dash-acervos').innerText = "842"; document.getElementById('dash-processos').innerText = "104"; document.getElementById('dash-municipios').innerText = "417"; }
         function logout() { registrarLog("Logout efetuado"); usuarioLogado = null; document.getElementById('sistema-dashboard').classList.add('hidden'); document.getElementById('tela-login').classList.remove('hidden'); }
     </script>
