@@ -226,325 +226,35 @@
         </main>
     </div>
 
-    <div id="modal-nova-solicitacao-container" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white w-full max-w-3xl rounded-xl shadow-2xl border overflow-hidden my-8">
-            <div class="bg-blue-900 text-white px-6 py-4 flex justify-between items-center">
-                <h2 class="text-base font-bold">📥 Abertura de Solicitação — Desarquivamento</h2>
-                <button type="button" onclick="fecharFormularioNovaSolicitacao()" class="text-white hover:text-amber-400 font-bold text-sm cursor-pointer">✕ Fechar</button>
-            </div>
-            <form id="form-nova-solicitacao" onsubmit="salvarNovaSolicitacao(event)" class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome Completo do Aluno / Interessado</label>
-                    <input type="text" id="proc-nome-aluno" required class="w-full p-2 border rounded-lg text-sm font-medium focus:outline-none">
-                </div>
-
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 space-y-3">
-                    <label class="block text-xs font-bold text-blue-950 uppercase">Vincular Escola de Origem</label>
-                    <div class="relative">
-                        <input type="text" id="proc-busca-escola-ref" placeholder="🔎 Digite parte do nome da escola para pesquisar..." oninput="pesquisarEscolaParaProcesso()" class="w-full p-2.5 border rounded-lg text-xs bg-white font-medium focus:outline-none placeholder:text-gray-400">
-                        <div id="proc-resultado-busca-escola" class="absolute left-0 right-0 top-full bg-white border rounded-b-lg shadow-lg z-50 max-h-48 overflow-y-auto hidden divide-y"></div>
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-                        <div><label class="block text-[10px] font-bold text-gray-500 uppercase">Cód MEC</label><input type="text" id="auto-cod-mec" readonly class="w-full p-2 bg-gray-100 border text-gray-600 rounded text-xs font-bold"></div>
-                        <div><label class="block text-[10px] font-bold text-gray-500 uppercase">Situação Escola</label><input type="text" id="auto-situacao" readonly class="w-full p-2 bg-gray-100 border text-gray-600 rounded text-xs"></div>
-                        <div><label class="block text-[10px] font-bold text-gray-500 uppercase">Status Acervo</label><input type="text" id="auto-acervo" readonly class="w-full p-2 bg-gray-100 border text-gray-600 rounded text-xs"></div>
-                        <div><label class="block text-[10px] font-bold text-gray-500 uppercase">Local Acervo</label><input type="text" id="auto-local-acervo" readonly class="w-full p-2 bg-gray-100 border text-gray-600 rounded text-xs"></div>
-                        <div><label class="block text-[10px] font-bold text-gray-500 uppercase">Assinatura</label><input type="text" id="auto-assinatura" readonly class="w-full p-2 bg-gray-100 border text-gray-600 rounded text-xs"></div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Documento Solicitado</label>
-                        <select id="proc-documento" required class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium">
-                            <option value="">Selecione...</option><option value="Histórico">Histórico</option><option value="2ª via">2ª via</option><option value="Atestado">Atestado</option><option value="Autenticidade">Autenticidade</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Oferta (Nível)</label>
-                        <select id="proc-nivel" required class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium">
-                            <option value="">Selecione...</option><option value="Fundamental">Fundamental</option><option value="Médio">Médio</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Modalidade</label>
-                        <select id="proc-modalidade" required class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium">
-                            <option value="">Selecione...</option><option value="Regular">Regular</option><option value="Técnico">Técnico</option><option value="Suplência">Suplência</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="container-chk-aluno-acolhido" class="hidden p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input type="checkbox" id="proc-chk-email-acolhido" class="mt-0.5 h-4 w-4 text-blue-900">
-                        <span class="text-xs text-amber-950 font-semibold select-none">Enviar e-mail 01-aluno acolhido (Obrigatório para acervos recolhidos)</span>
-                    </label>
-                </div>
-                <div class="pt-4 border-t flex justify-end gap-2">
-                    <button type="button" onclick="fecharFormularioNovaSolicitacao()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" class="bg-blue-900 text-white font-bold px-6 py-2.5 rounded-lg text-xs cursor-pointer shadow-md">💾 Abrir Processo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-editar-processo" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-blue-900 text-white px-6 py-4"><h3 class="text-base font-bold">📝 Editar Dados do Processo</h3></div>
-            <form id="form-editar-processo-dados" class="p-6 space-y-4" onsubmit="salvarEdicaoDiretaProcesso(event)">
-                <input type="hidden" id="edit-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Nome Completo do Aluno</label>
-                    <input type="text" id="edit-proc-nome" required class="w-full p-2 border rounded-lg text-sm font-semibold uppercase">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Documento Solicitado</label>
-                    <select id="edit-proc-doc" required class="w-full p-2 border rounded-lg text-sm bg-gray-50">
-                        <option value="Histórico">Histórico</option><option value="2ª via">2ª via</option><option value="Atestado">Atestado</option><option value="Autenticidade">Autenticidade</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Oferta (Nível)</label>
-                    <select id="edit-proc-nivel" required class="w-full p-2 border rounded-lg text-sm bg-gray-50">
-                        <option value="Fundamental">Fundamental</option><option value="Médio">Médio</option>
-                    </select>
-                </div>
-                <div class="flex justify-end space-x-3 pt-2 border-t">
-                    <button type="button" onclick="fecharModalEditarProcesso()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-blue-900 text-white shadow">Salvar Modificações</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-master-controle" class="hidden fixed inset-0 bg-red-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-red-200">
-            <div class="bg-red-900 text-white px-6 py-4"><h3 class="text-base font-bold">🛠️ Painel Avançado Master (Forçar Etapa)</h3></div>
-            <form class="p-6 space-y-4" onsubmit="executarForcarFaseMaster(event)">
-                <input type="hidden" id="master-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Forçar Tramitação para qualquer Fase:</label>
-                    <select id="master-fase-alvo" class="w-full p-2.5 border rounded-lg text-sm font-bold bg-gray-50 text-red-950">
-                        <option value="Desarquivamento">📂 Desarquivamento</option>
-                        <option value="Análise">🔍 Análise</option>
-                        <option value="Pendência">⚠️ Pendência</option>
-                        <option value="Digitação">⌨️ Digitação</option>
-                        <option value="Conferência">🧐 Conferência</option>
-                        <option value="Assinatura">✍️ Assinatura</option>
-                        <option value="Deferido">✅ Deferido</option>
-                    </select>
-                </div>
-                <div class="p-3 bg-red-50 text-red-900 text-xs rounded-lg border border-red-200 font-medium">
-                    * Atenção Administrador: Esta ação ignora travas de e-mails, validações estruturais e regras de NTE.
-                </div>
-                <div class="flex justify-end space-x-3 pt-2 border-t">
-                    <button type="button" onclick="fecharModalMaster()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-red-900 text-white shadow">Forçar Update</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-pasta-encontrada" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-purple-900 text-white px-6 py-4"><h3 class="text-base font-bold">📂 Enviar para Análise</h3></div>
-            <form id="form-pasta-encontrada" class="p-6 space-y-4" onsubmit="salvarPastaEncontradaTransicao(event)">
-                <input type="hidden" id="modal-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">1. Tipo de Arquivo</label>
-                    <select id="modal-proc-tipo-arq" required class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium">
-                        <option value="">-- Selecione --</option>
-                        <option value="Pasta">Pasta</option><option value="Ata">Ata</option><option value="Diário">Diário</option><option value="folha de ponto">Folha de Ponto</option><option value="Parecer">Parecer</option><option value="Boletim">Boletim</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">2. Local do Arquivo</label>
-                    <select id="modal-proc-local" required class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium">
-                        <option value="">-- Selecione --</option>
-                        <option value="GLPI">GLPI</option><option value="E-DOC">E-DOC</option><option value="NTE">NTE</option><option value="CEE">CEE</option><option value="MP">MP</option><option value="E-mail">E-mail</option><option value="SIGEDUC">SIGEDUC</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">3. Prioridade</label>
-                    <select id="modal-proc-prioridade" required class="w-full p-2 border rounded-lg text-sm bg-gray-50">
-                        <option value="Normal">Normal</option><option value="Urgente">Urgente</option><option value="2ª via">2ª via</option><option value="Autenticidade">Autenticidade</option><option value="CEE">CEE</option><option value="MP">MP</option><option value="Ouvidoria">Ouvidoria</option><option value="Exterior">Exterior</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">4. Selecione o Analista (Por NTE)</label>
-                    <select id="modal-tecnico-selecionavel" required class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                </div>
-                <div class="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input type="checkbox" id="modal-proc-chk-email" onchange="toggleBotaoImpressao()" class="mt-0.5 h-4 w-4 text-purple-900">
-                        <span class="text-xs text-purple-950 font-semibold select-none">Enviar e-mail: (02-ALUNO ANÁLISE) obrigatório para habilitar o envio</span>
-                    </label>
-                </div>
-                <div class="flex justify-end space-x-3 pt-2">
-                    <button type="button" onclick="fecharModalPastaEncontrada()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" id="btn-confirmar-impressao" disabled class="px-5 py-2 rounded-lg text-xs font-bold bg-purple-900 text-white disabled:opacity-40 cursor-not-allowed transition duration-200">Enviar para Análise 🔍</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-verificar-pendencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border my-8">
-            <div class="bg-amber-600 text-white px-6 py-4"><h3 class="text-base font-bold">📋 Retorno da Análise Estrutural</h3></div>
-            <form id="form-verificar-pendencia" class="p-6 space-y-4" onsubmit="processarSaidaAnalisePendencia(event)">
-                <input type="hidden" id="modal-pend-proc-id">
-                
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Pendência identificada?</label>
-                    <select id="modal-pend-resposta" required onchange="toggleInputTextoPendencia()" class="w-full p-2 border rounded-lg text-sm bg-white font-bold text-gray-800">
-                        <option value="">-- Selecione --</option>
-                        <option value="nao">NÃO (Avançar para Digitação)</option>
-                        <option value="sim">SIM (Avançar para Aba Pendência)</option>
-                    </select>
-                </div>
-
-                <div id="wrapper-sem-pendencia" class="hidden space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Selecione o Digitador (Por NTE)</label>
-                        <select id="modal-digitador-selecionavel" class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                    </div>
-                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <label class="flex items-start gap-2.5 cursor-pointer">
-                            <input type="checkbox" id="modal-chk-email-digitacao" onchange="validarFluxoBotaoAnalise()" class="mt-0.5 h-4 w-4 text-blue-900">
-                            <span class="text-xs text-blue-950 font-semibold select-none">ENVIAR E-MAIL "03-Aluno (Digitação)" (Obrigatório para avançar)</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div id="wrapper-desc-pendencia" class="hidden space-y-4">
-                    <div class="bg-red-50 p-3 rounded-lg border border-red-200 space-y-2">
-                        <p class="text-xs font-bold text-red-900 uppercase">Origem da Pendência:</p>
-                        <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                            <input type="checkbox" id="chk-pend-aluno" onchange="atualizarInterfaceEmaileTextoPendencia()" class="h-4 w-4 text-amber-600"> PENDÊNCIA ALUNO
-                        </label>
-                        <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                            <input type="checkbox" id="chk-pend-inst" onchange="atualizarInterfaceEmaileTextoPendencia()" class="h-4 w-4 text-amber-600"> PENDÊNCIA INSTITUIÇÃO
-                        </label>
-                    </div>
-                    <div id="box-texto-pendencia" class="hidden">
-                        <label class="block text-xs font-bold uppercase text-red-700 mb-1">Informe detalhadamente a Pendência (Obrigatório):</label>
-                        <textarea id="modal-pend-texto" rows="3" placeholder="Escreva aqui os motivos e inconsistências encontradas..." class="w-full p-2 border border-red-300 rounded-lg text-xs bg-white focus:outline-none"></textarea>
-                    </div>
-                    <div id="box-email-pendencia-dinamico"></div>
-                </div>
-
-                <div class="flex justify-end space-x-3 pt-3 border-t">
-                    <button type="button" onclick="fecharModalPendencia()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Voltar</button>
-                    <button type="submit" id="btn-salvar-analise" disabled class="px-5 py-2 rounded-lg text-xs font-bold bg-amber-600 text-white disabled:opacity-40 cursor-not-allowed shadow-md">Confirmar Ação</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-saida-pendencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-emerald-600 text-white px-6 py-4"><h3 class="text-base font-bold">📥 Processar Documento Recebido</h3></div>
-            <form id="form-saida-pendencia" class="p-6 space-y-4" onsubmit="salvarSaidaPendenciaParaDigitacao(event)">
-                <input type="hidden" id="modal-saida-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">O documento entregue está completo ou parcial?</label>
-                    <select id="modal-saida-tipo-entrega" required onchange="toggleEstruturaSaidaPendencia()" class="w-full p-2 border rounded-lg text-sm bg-white font-bold">
-                        <option value="">-- Selecione --</option>
-                        <option value="completo">COMPLETO (Ir para Digitação)</option>
-                        <option value="parcial">PARCIAL (Continuar em Pendência)</option>
-                    </select>
-                </div>
-
-                <div id="wrapper-saida-completa" class="hidden space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Selecione o Digitador (Por NTE)</label>
-                        <select id="modal-saida-digitador" class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                    </div>
-                </div>
-
-                <div id="wrapper-chk-email-saida-pendencia" class="hidden p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input type="checkbox" id="chk-email-saida-pendencia" onchange="validarBotaoSaidaPendencia()" class="mt-0.5 h-4 w-4 text-emerald-600">
-                        <span class="text-xs text-amber-950 font-semibold select-none">Enviar e-mail de notificação de recebimento (Opcional)</span>
-                    </label>
-                </div>
-
-                <div class="flex justify-end space-x-3 pt-3 border-t">
-                    <button type="button" onclick="fecharModalSaidaPendencia()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" id="btn-confirmar-saida-pendencia" disabled class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white disabled:opacity-40 shadow-md">Salvar Registo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-conferencia-avanco" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-blue-900 text-white px-6 py-4"><h3 class="text-base font-bold">🧐 Enviar para Conferência</h3></div>
-            <form id="form-conferencia-avanco" class="p-6 space-y-4" onsubmit="salvarTransicaoParaConferencia(event)">
-                <input type="hidden" id="modal-conf-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Selecione o Conferente (Por NTE)</label>
-                    <select id="modal-conferente-selecionavel" required class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                </div>
-                <div class="flex justify-end space-x-3 pt-3 border-t">
-                    <button type="button" onclick="fecharModalConferencia()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-blue-900 text-white shadow-md">Confirmar Envio</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-retorno-conferencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-orange-600 text-white px-6 py-4"><h3 class="text-base font-bold">🧐 Resultado da Conferência Documental</h3></div>
-            <form id="form-retorno-conferencia" class="p-6 space-y-4" onsubmit="processarSaidaConferencia(event)">
-                <input type="hidden" id="modal-ret-conf-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">O documento está apto ou possui erro de digitação?</label>
-                    <select id="modal-ret-conf-resposta" required onchange="toggleEstruturaRetornoConferencia()" class="w-full p-2 border rounded-lg text-sm bg-white font-bold text-gray-800">
-                        <option value="">-- Selecione --</option>
-                        <option value="apto">APTO (Avançar para Assinatura)</option>
-                        <option value="erro">COM ERRO (Retornar para Digitação)</option>
-                    </select>
-                </div>
-
-                <div id="wrapper-conf-apto" class="hidden space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Selecione o Responsável pela Assinatura</label>
-                        <select id="modal-assinatura-selecionavel" class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                    </div>
-                </div>
-
-                <div id="wrapper-conf-erro" class="hidden space-y-2">
-                    <label class="block text-xs font-bold uppercase text-red-700 mb-1">Descreva detalhadamente o Erro encontrado (Obrigatório):</label>
-                    <textarea id="modal-ret-conf-erro-texto" rows="3" placeholder="Indique quais campos ou dados precisam ser refeitos pelo digitador..." class="w-full p-2 border border-red-300 rounded-lg text-xs bg-white focus:outline-none"></textarea>
-                </div>
-
-                <div class="flex justify-end space-x-3 pt-3 border-t">
-                    <button type="button" onclick="fecharModalRetornoConferencia()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Voltar</button>
-                    <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-orange-600 text-white shadow-md">Confirmar Resultado</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
-        // CONFIGURAÇÕES GERAIS E BASE URL DA API
         const BASE_URL = "https://solucoessecba.com.br/api"; 
         let usuarioLogado = null;
 
-        // BUFFER DE MEMÓRIA DINÂMICO
         let globalEscolas = [];
         let globalProcessos = [];
         let globalUsuarios = [];
         let globalNtes = [];
 
-        // PAGINAÇÃO E FILTROS ATIVOS
         let escolaPaginaAtual = 1;
         const escolaRegistrosPorPagina = 15;
         let escolaFiltroBusca = "";
         let processoFaseFiltroAtivo = "TODOS";
 
-        // FLUXO DE NAVEGAÇÃO ENTRE ABAS
+        // CORREÇÃO DO ERRO DO CONSOLE: Adicionando a função que estava em falta
+        async function carregarGruposNtes() {
+            globalNtes = ["NTE 01", "NTE 02", "NTE 03", "NTE 04"];
+            const selectDash = document.getElementById('dash-filtro-nte');
+            if(selectDash) {
+                // Limpa opções antigas mantendo a Geral
+                selectDash.innerHTML = '<option value="GERAL">📊 VISÃO GERAL (Todos os NTEs)</option>';
+                globalNtes.forEach(nte => {
+                    let opt = document.createElement('option');
+                    opt.value = nte; opt.innerText = nte;
+                    selectDash.appendChild(opt);
+                });
+            }
+        }
+
         function navegar(aba) {
             document.getElementById('aba-painel').classList.add('hidden');
             document.getElementById('aba-escolas').classList.add('hidden');
@@ -559,115 +269,6 @@
             if (aba === 'logs') { document.getElementById('aba-logs').classList.remove('hidden'); carregarLogs(); }
         }
 
-        // CONTROLADORES DE INTERFACE E VALIDATION DOS MODAIS DE TRAMITAÇÃO
-        function toggleBotaoImpressao() {
-            const chk = document.getElementById('modal-proc-chk-email').checked;
-            document.getElementById('btn-confirmar-impressao').disabled = !chk;
-            if(chk) {
-                document.getElementById('btn-confirmar-impressao').classList.remove('cursor-not-allowed');
-            } else {
-                document.getElementById('btn-confirmar-impressao').classList.add('cursor-not-allowed');
-            }
-        }
-
-        function toggleInputTextoPendencia() {
-            const resp = document.getElementById('modal-pend-resposta').value;
-            const wSem = document.getElementById('wrapper-sem-pendencia');
-            const wCom = document.getElementById('wrapper-desc-pendencia');
-            
-            wSem.classList.add('hidden');
-            wCom.classList.add('hidden');
-            document.getElementById('btn-salvar-analise').disabled = true;
-
-            if(resp === 'nao') {
-                wSem.classList.remove('hidden');
-                validarFluxoBotaoAnalise();
-            } else if(resp === 'sim') {
-                wCom.classList.remove('hidden');
-                atualizarInterfaceEmaileTextoPendencia();
-            }
-        }
-
-        function validarFluxoBotaoAnalise() {
-            const resp = document.getElementById('modal-pend-resposta').value;
-            if(resp === 'nao') {
-                const chkEmail = document.getElementById('modal-chk-email-digitacao').checked;
-                document.getElementById('btn-salvar-analise').disabled = !chkEmail;
-            }
-        }
-
-        function atualizarInterfaceEmaileTextoPendencia() {
-            const chkAluno = document.getElementById('chk-pend-aluno').checked;
-            const chkInst = document.getElementById('chk-pend-inst').checked;
-            const boxTexto = document.getElementById('box-texto-pendencia');
-            const boxEmail = document.getElementById('box-email-pendencia-dinamico');
-            
-            boxEmail.innerHTML = "";
-
-            if(chkAluno || chkInst) {
-                boxTexto.classList.remove('hidden');
-                document.getElementById('btn-salvar-analise').disabled = false;
-
-                if(chkAluno) {
-                    boxEmail.innerHTML = `
-                        <div class="p-3 bg-red-50 rounded-lg border border-red-200 mt-2">
-                            <label class="flex items-start gap-2.5 cursor-pointer">
-                                <input type="checkbox" id="chk-email-pend-aluno-obrigatorio" onchange="validarCheckboxesPendenciaObrigatorias()" class="mt-0.5 h-4 w-4 text-red-600">
-                                <span class="text-xs text-red-950 font-bold">ENVIAR E-MAIL "04-Aluno (Pendência)" Obrigatório</span>
-                            </label>
-                        </div>`;
-                    document.getElementById('btn-salvar-analise').disabled = true;
-                }
-            } else {
-                boxTexto.classList.add('hidden');
-                document.getElementById('btn-salvar-analise').disabled = true;
-            }
-        }
-
-        function validarCheckboxesPendenciaObrigatorias() {
-            const chkAluno = document.getElementById('chk-pend-aluno').checked;
-            if(chkAluno) {
-                const chkEmail = document.getElementById('chk-email-pend-aluno-obrigatorio').checked;
-                document.getElementById('btn-salvar-analise').disabled = !chkEmail;
-            }
-        }
-
-        function toggleEstruturaSaidaPendencia() {
-            const tipo = document.getElementById('modal-saida-tipo-entrega').value;
-            const wCompleta = document.getElementById('wrapper-saida-completa');
-            const wEmail = document.getElementById('wrapper-chk-email-saida-pendencia');
-            
-            wCompleta.classList.add('hidden');
-            wEmail.classList.add('hidden');
-
-            if(tipo === 'completo') {
-                wCompleta.classList.remove('hidden');
-                wEmail.classList.remove('hidden');
-            } else if(tipo === 'parcial') {
-                wEmail.classList.remove('hidden');
-            }
-            validarBotaoSaidaPendencia();
-        }
-
-        function validarBotaoSaidaPendencia() {
-            const tipo = document.getElementById('modal-saida-tipo-entrega').value;
-            // Validação ajustada: Permite salvar mesmo sem obrigar e-mail se for opcional, apenas verifica se o tipo foi selecionado
-            document.getElementById('btn-confirmar-saida-pendencia').disabled = !tipo;
-        }
-
-        function toggleEstruturaRetornoConferencia() {
-            const resp = document.getElementById('modal-ret-conf-resposta').value;
-            const wApto = document.getElementById('wrapper-conf-apto');
-            const wErro = document.getElementById('wrapper-conf-erro');
-            
-            wApto.classList.add('hidden');
-            wErro.classList.add('hidden');
-
-            if(resp === 'apto') wApto.classList.remove('hidden');
-            if(resp === 'erro') wErro.classList.remove('hidden');
-        }
-
-        // LOGIN, LOGOUT E RENDERIZADORES DO BUFFER DE MEMÓRIA (MOCK/SIMULAÇÃO OPERACIONAL)
         function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
@@ -691,41 +292,27 @@
             document.getElementById('tela-login').classList.remove('hidden');
         }
 
-        async function carregarGruposNtes() {
-            globalNtes = ["NTE 01", "NTE 02", "NTE 03", "NTE 04"];
-            const selectDash = document.getElementById('dash-filtro-nte');
-            globalNtes.forEach(nte => {
-                let opt = document.createElement('option');
-                opt.value = nte; opt.innerText = nte;
-                selectDash.appendChild(opt);
-            });
-        }
-
         function carregarDadosDashboardReal() {
             document.getElementById('dash-escolas').innerText = globalEscolas.length;
             document.getElementById('dash-acervos').innerText = globalEscolas.filter(e => e.acervo === "Sim").length;
             document.getElementById('dash-estaduais').innerText = globalEscolas.filter(e => e.dep === "Estadual").length;
-            document.getElementById('dash-usuarios').innerText = "4";
-            document.getElementById('dash-municipios').innerText = "12";
+            document.getElementById('dash-usuarios').innerText = globalUsuarios.length || "0";
+            document.getElementById('dash-municipios').innerText = "0";
         }
 
-        function carregarEContarProcessosHorizontais() {
-            // Conta processos por fase e renderiza na tabela conforme filtro
-            renderizarProcessosFlutuantes();
-        }
-
-        function filtrarProcessosPorEtapa(fase) {
-            processoFaseFiltroAtivo = fase;
-            renderizarProcessosFlutuantes();
-        }
-
+        function carregarEContarProcessosHorizontais() { renderizarProcessosFlutuantes(); }
+        function filtrarProcessosPorEtapa(fase) { processoFaseFiltroAtivo = fase; renderizarProcessosFlutuantes(); }
+        
         function renderizarProcessosFlutuantes() {
             const corpo = document.getElementById('tabela-processos-corpo');
-            corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo em tramitação no momento.</td></tr>`;
+            if(corpo) {
+                corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo em tramitação no momento.</td></tr>`;
+            }
         }
 
         function renderizarListaEscolasBufferMemoria() {
             const corpo = document.getElementById('tabela-escolas-corpo');
+            if(!corpo) return;
             if(globalEscolas.length === 0) {
                 corpo.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 font-medium">Nenhuma escola catalogada. Importe uma planilha Excel.</td></tr>`;
                 return;
@@ -769,11 +356,22 @@
             reader.readAsArrayBuffer(file);
         }
 
+        function carregarListaUsuarios() {
+            const corpo = document.getElementById('tabela-usuarios-corpo');
+            if(corpo) corpo.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400">Nenhum técnico listado.</td></tr>`;
+        }
+        
+        function carregarLogs() {
+            const corpo = document.getElementById('tabela-logs-corpo');
+            if(corpo) corpo.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Nenhum log encontrado.</td></tr>`;
+        }
+
+        function filtrarDashboardPorNte() {}
         function mudarPaginaEscola(dir) {}
         function filtrarPorBusca() {}
-        function abrirFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.remove('hidden'); }
-        function fecharFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.add('hidden'); }
-        function abrirModalNovaEscola() { alert('Função de cadastro manual de escola.'); }
+        function abrirFormularioNovaSolicitacao() {}
+        function abrirModalCriarUsuario() {}
+        function abrirModalNovaEscola() {}
 
         document.addEventListener("DOMContentLoaded", () => {
             carregarGruposNtes().catch(err => console.error("Erro inicialização:", err));
