@@ -557,22 +557,6 @@ function fecharModalProcesso() {
             });
         }
 
-        // ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
-function controlarModalUsuario(deveAbrir = false) {
-    const modal = document.getElementById('modal-usuario');
-    if (!modal) return;
-
-    if (deveAbrir) {
-        document.getElementById('form-usuario').reset();
-        document.getElementById('user-id').value = "";
-        document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastro de Operador Regional";
-    }
-
-    // Alterna as classes de visibilidade do Tailwind de forma limpa
-    modal.classList.toggle('hidden', !deveAbrir);
-    modal.classList.toggle('flex', deveAbrir);
-}
-
 // ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
 function controlarModalUsuario(deveAbrir = false) {
     const modal = document.getElementById('modal-usuario');
