@@ -706,11 +706,29 @@
         }
 
         function carregarDadosDashboardReal() {
-            document.getElementById('dash-escolas').innerText = globalEscolas.length;
-            document.getElementById('dash-acervos').innerText = globalEscolas.filter(e => e.acervo === "Sim").length;
-            document.getElementById('dash-estaduais').innerText = globalEscolas.filter(e => e.dep === "Estadual").length;
-            document.getElementById('dash-usuarios').innerText = "4";
-            document.getElementById('dash-municipios').innerText = "12";
+            // Função utilitária interna para injetar texto apenas se o elemento existir no DOM
+            const definirTextoSeguro = (id, valor) => {
+                const elemento = document.getElementById(id);
+                if (elemento) elemento.innerText = valor;
+            };
+
+            // 1. Total de Escolas
+            definirTextoSeguro('dash-escolas', globalEscolas.length);
+
+            // 2. Total de Escolas com Acervo ativo
+            const totalAcervos = globalEscolas.filter(e => e.acervo === "Sim").length;
+            definirTextoSeguro('dash-acervos', totalAcervos);
+
+            // 3. Total de Escolas da Dependência Estadual
+            const totalEstaduais = globalEscolas.filter(e => e.dep === "Estadual").length;
+            definirTextoSeguro('dash-estaduais', totalEstaduais);
+
+            // 4. Total de Processos Ativos buscados do Supabase
+            definirTextoSeguro('dash-processos', globalProcessos.length);
+
+            // 5. Total de Municípios Únicos atendidos pelo banco
+            const municipiosUnicos = [...new Set(globalEscolas.map(e => e.municipio).filter(Boolean))];
+            definirTextoSeguro('dash-municipios', municipiosUnicos.length);
         }
 
         function carregarEContarProcessosHorizontais() {
