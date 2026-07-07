@@ -594,31 +594,9 @@ function editarUsuarioClick(id) {
     document.getElementById('user-perfil-input').value = u.perfil || 'Tecnico';
     document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
     
-    // Alinhado com o novo padrão refatorado
+    // Abre a modal pelo controlador padrão
     controlarModalUsuario(true); 
-}        async function salvarUsuarioFormulario(event) {
-            event.preventDefault();
-            const id = document.getElementById('user-id').value;
-            const payload = {
-                nome: document.getElementById('user-nome-input').value.toUpperCase().trim(),
-                email: document.getElementById('user-email-input').value.trim(),
-                senha_hash: document.getElementById('user-senha-input').value,
-                perfil: document.getElementById('user-perfil-input').value
-            };
-
-            try {
-                if(id) {
-                    await supabase.from('usuarios_sigee').update(payload).eq('id', id);
-                    await registrarLogNoSupabase(`Editou operador técnico: ${payload.email}`);
-                } else {
-                    await supabase.from('usuarios_sigee').insert([payload]);
-                    await registrarLogNoSupabase(`Cadastrou novo operador técnico: ${payload.email}`);
-                }
-                fecharModalUsuario();
-                await sincronizarTabelasDoSupabase();
-                carregarListaUsuarios();
-            } catch(e) { alert("Erro ao salvar técnico."); }
-        }
+}
 
         // ================= FLOW: LOGS & EXCEL =================
         function carregarLogs() {
