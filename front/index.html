@@ -725,7 +725,64 @@
 
         function renderizarProcessosFlutuantes() {
             const corpo = document.getElementById('tabela-processos-corpo');
-            corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo em tramitação no momento.</td></tr>`;
+            if (!corpo) return;
+            corpo.innerHTML = '';
+
+            // Filtra os processos com base na aba/fase selecionada
+            const processosFiltrados = globalProcessos.filter(p => {
+                if (processoFaseFiltroAtivo === "TODOS") return true;
+                return p.etapa.toUpperCase() === processoFaseFiltroAtivo.toUpperCase();
+            });
+
+            if (processosFiltrados.length === 0) {
+                corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo encontrado para esta fase.</td></tr>`;
+                return;
+            }
+
+            // Mapeamento sequencial das fases para o botão avançar saber qual é a próxima
+            const sequenciaFases = ["Desarquivamento", "Análise", "Conferência", "Finalizado"];
+
+            processosFiltrados.forEach(p => {
+                const indexAtual = sequenciaFases.findIndex(f => f.toUpperCase() === p.etapa.toUpperCase());
+                const proximaFase = indexAtual !== -1 && indexAtual < sequenciaFases.length - 1 ? sequenciaFases[indexAtual + 1] : null;
+
+                let botaoAcao = '';
+                if (proximaFase) {
+                    botaoAcao = `<button onclick="tramitarProcessoSupabase(${p.id}, '${proximaFase}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded transition">Avançar para ${proximaFase}</button>`;
+                } else {
+                    botaoAcao = `<span class="text-green-600 font-bold text-xs">✓ Concluído</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100 hover:bg-gray-50 text-sm text-gray-700";
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-900">${p.aluno}</td>
+                    <td class="p-3">${p.escola}</td>
+                    <td class="p-3">${p.documento}</td>
+                    <td class="p-3"><span class="px-2 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800">${p.etapa}</span></td>
+                    <td class="p-3">${p.dias} dias</td>
+                    <td class="p-3 text-xs text-gray-500">${p.nte || 'NTE 01'}</td>
+                    <td class="p-3">${botaoAcao}</td>
+                `;
+                corpo.appendChild(tr);
+            });
+        }
+
+        // FUNÇÃO QUE EXECUTA O UPDATE DE FASE NO BANCO DE DADOS
+        async function tramitarProcessoSupabase(processoId, novaFase) {
+            alert("Movimentando processo no banco de dados...");
+            const { error } = await supabase
+                .from('processos')
+                .update({ etapa_atual: novaFase, dias_decorridos: 0 })
+                .eq('id', processoId);
+
+            if (error) {
+                alert("Erro ao tramitar processo: " + error.message);
+                return;
+            }
+
+            alert("Processo avançado com sucesso!");
+            await carregarProcessosDoSupabase();
         }
 // BUSCAR DADOS DA TABELA ESCOLAS DO SUPABASE
         async function carregarEscolasDoSupabase() {
