@@ -268,21 +268,15 @@
 
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let escolasDB = [];
-        let procesosDB = []; // Mantido o fallback estrutural para evitar conflitos de escopo anterior
-        let processosDB = []; 
-        let usuariosDB = [];
-        let logsDB = [];
         let usuarioLogado = null;
 
-        // Limpando declarações duplicadas e fixando escopo global limpo
+        // Declaração única no escopo global limpo para evitar conflitos de variáveis
         window.escolasDB = [];
         window.processosDB = [];
         window.usuariosDB = [];
         window.logsDB = [];
 
         async function sincronizarTabelasDoSupabase() {
-            // Tratamentos individuais Try/Catch garantem que o app nunca trave se uma tabela estiver ausente
             try {
                 const { data: esc } = await supabase.from('escolas_sigee').select('*');
                 window.escolasDB = esc || [];
