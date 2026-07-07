@@ -533,10 +533,160 @@
         const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co"; 
         const SUPABASE_ANON_KEY = "https://ckxbvsfjsknbgpfpxcyy.supabase.co/rest/v1/";
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        let usuarioLogado = null;
 
-        // BUFFER DE MEMÓRIA DINÂMICO
+    // FUNÇÃO UTILITÁRIA GLOBAL PARA INJEÇÃO SEGURA DE CONTEÚDO NO DOM
+        const atualizarTextoSeguro = (id, valor) => {
+            const elemento = document.getElementById(id);
+            if (elemento) {
+                elemento.innerText = valor;
+                return true;
+            }
+            return false;
+        };
+
+    // SISTEMA DE LOGS E AUDITORIA NO SUPABASE
+        async function registrarLog(acao, detalhes = "") {
+            const usuarioEmail = usuarioLogado && usuarioLogado.email ? usuarioLogado.email : "Usuario Anonimo";
+            console.log(`[LOG] Gravando: ${usuarioEmail} - ${acao}`);
+
+            const { error } = await supabase
+                .from('logs')
+                .insert([
+                    { 
+                        usuario_email: usuarioEmail, 
+                        acao: acao, 
+                        detalhes: detalhes 
+                    }
+                ]);
+
+            if (error) {
+                console.error("Erro crítico ao salvar log de auditoria:", error.message);
+            }
+    // AUTENTICAÇÃO REAL COM SUPABASE AUTH (AÇÃO 1)
+        async function realizarLogin(event) {
+            if (event) event.preventDefault();
+
+            const campoUsuario = document.getElementById('login-usuario');
+            const campoSenha = document.getElementById('login-senha');
+
+            if (!campoUsuario || !campoSenha) {
+                alert("Erro técnico: Campos de login não encontrados no HTML.");
+                return;
+            }
+
+            const email = campoUsuario.value.trim();
+            const senha = campoSenha.value;
+
+            if (!email || !senha) {
+                alert("Por favor, preencha todos os campos.");
+                return;
+            }
+
+            alert("Autenticando credenciais...");
+
+            // Chamada oficial da API do Supabase Auth
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: senha,
+            });
+         if (error) {
+            alert("Erro ao realizar login: " + error.message);
+             return;
+         }
+ 
+         // 1. LOGIN SUCESSO NO AUTH: Buscar metadados adicionais na tabela 'usuarios'
+         const uuidUsuario = data.user.id;
+         const emailUsuario = data.user.email;
+ 
+         const { data: perfilDados, error: perfilErro } = await supabase
+             .from('usuarios')
+             .select('nome, perfil, nte, ativo')
+             .eq('id', uuidUsuario)
+             .single();
+ 
+         if (perfilErro) {
+             console.error("Perfil complementar não localizado:", perfilErro.message);
+             // Fallback preventivo caso o usuário não esteja mapeado na tabela customizada
+             usuarioLogado = {
+                 id: uuidUsuario,
+                 email: emailUsuario,
+                 nome: emailUsuario.split('@')[0],
+                 perfil: 'Consulta',
+                 nte: null
+             };
+         } else {
+             // Se o usuário estiver inativo, derruba a sessão na hora
+             if (perfilDados.ativo === false) {
+                 alert("🚫 Acesso Negado: Esta conta foi inativada por um usuário Master.");
+                 await supabase.auth.signOut();
+                 window.location.reload();
+                 return;
+             }
+ 
+             // Gravação bem-sucedida do escopo do usuário logado
+             usuarioLogado = {
+                 id: uuidUsuario,
+                 email: emailUsuario,
+                 nome: perfilDados.nome,
+                 perfil: perfilDados.perfil,
+                 nte: perfilDados.nte
+             };
+         }
+ 
+         // 2. SISTEMA DE AUDITORIA (Mantendo sua estrutura original)
+         await registrarLog("Login", "Usuário autenticou com sucesso no sistema.");
+         alert(`Login realizado com sucesso! Bem-vindo(a), ${usuarioLogado.nome}.`);
+ 
+         // 3. SINCRONIZAÇÃO DE DADOS BASEADA NO NOVO PERFIL/NTE
+         await carregarEscolasDoSupabase();
+         await carregarProcessosDoSupabase();
+         carregarDadosDashboardReal();
+ 
+         // 4. TRANSIÇÃO DE TELAS ORIGINAL
+         const loginSection = document.getElementById('tela-login');
+         const dashSection = document.getElementById('sistema-dashboard');
+ 
+         if (loginSection) loginSection.classList.add('hidden');
+         if (dashSection) dashSection.classList.remove('hidden');
+ 
+         // Roteamento interno do painel
+         if (typeof navegar === 'function') {
+             navegar('painel');
+         }
+     } // <-- Esta chave fecha oficialmente a sua função realizarLogin
+        // ==========================================
+        // CONTROLE DE SESSÃO E MATRIZ DE PERMISSÕES
+        // ==========================================
+        let usuarioLogado = null; // Recebe o objeto do usuário vindo do Supabase Auth
+
+        const PERMISSOES = {
+            'Master': {
+                processos: { criar: true, avancar: true, regredir: true, editar: true, excluir: true },
+                escolas: { importar: true, editar: true, incluir: true, excluir: true },
+                usuarios: { criar: true, editar: true, ativar: true, inativar: true, resetar: true },
+                dashboard: 'Global'
+            },
+            'Administrador': {
+                processos: { criar: true, avancar: true, regredir: true, editar: true, excluir: true },
+                escolas: { importar: false, editar: true, incluir: true, excluir: false },
+                usuarios: { criar: true, editar: false, ativar: false, inativar: false, resetar: true },
+                dashboard: 'NTE'
+            },
+            'Tecnico': {
+                processos: { criar: true, avancar: true, regredir: false, editar: false, excluir: false },
+                escolas: { importar: false, editar: true, incluir: true, excluir: false },
+                usuarios: { criar: false, editar: false, ativar: false, inativar: false, resetar: false },
+                dashboard: 'NTE'
+            },
+            'Consulta': {
+                processos: { criar: false, avancar: false, regredir: false, editar: false, excluir: false },
+                escolas: { importar: false, editar: false, incluir: false, excluir: false },
+                usuarios: { criar: false, editar: false, ativar: false, inativar: false, resetar: false },
+                dashboard: 'NTE'
+            }
+        };
+
+        // BUFFER DE MEMÓRIA DINÂMICO (CACHE LOCAL)
         let globalEscolas = [];
         let globalProcessos = [];
         let globalUsuarios = [];
@@ -546,7 +696,7 @@
         let escolaPaginaAtual = 1;
         const escolaRegistrosPorPagina = 15;
         let escolaFiltroBusca = "";
-        let processoFaseFiltroAtivo = "TODOS";
+        let processofaseFiltroAtivo = "TODOS";
 
         // FLUXO DE NAVEGAÇÃO ENTRE ABAS
         function navegar(aba) {
@@ -705,85 +855,88 @@
             });
         }
 
+        // CALCULAR MÉTRICAS DO DASHBOARD COM TRAVA POR NÍVEL DE ACESSO
         function carregarDadosDashboardReal() {
-            // Função utilitária interna para injetar texto apenas se o elemento existir no DOM
-            const definirTextoSeguro = (id, valor) => {
-                const elemento = document.getElementById(id);
-                if (elemento) elemento.innerText = valor;
-            };
+            // Se não houver processos carregados ou ninguém logado, cancela a execução
+            if (!globalProcessos) return;
 
-            // 1. Total de Escolas
-            definirTextoSeguro('dash-escolas', globalEscolas.length);
+            // 1. DEFINIÇÃO DE ESCOPO (PERFORMANCE & SEGURANÇA)
+            let processosDoPainel = globalProcessos;
 
-            // 2. Total de Escolas com Acervo ativo
-            const totalAcervos = globalEscolas.filter(e => e.acervo === "Sim").length;
-            definirTextoSeguro('dash-acervos', totalAcervos);
+            // Se o usuário NÃO for Master e possuir uma NTE vinculada, restringe os dados imediatamente
+            if (usuarioLogado && usuarioLogado.perfil !== 'Master' && usuarioLogado.nte) {
+                const nteDoUsuario = usuarioLogado.nte.toUpperCase().trim();
+                processosDoPainel = globalProcessos.filter(p => 
+                    (p.nte || "").toUpperCase().trim() === nteDoUsuario
+                );
+            }
 
-            // 3. Total de Escolas da Dependência Estadual
-            const totalEstaduais = globalEscolas.filter(e => e.dep === "Estadual").length;
-            definirTextoSeguro('dash-estaduais', totalEstaduais);
+            // 2. PROCESSAMENTO DAS MÉTRICAS EM MEMÓRIA RAM (ZERO REQUISIÇÕES ADICIONAIS AO BANCO)
+            const totalGeral = processosDoPainel.length;
+            const novos = processosDoPainel.filter(p => p.etapa === 'Desaquivamento' || p.etapa === 'Novo').length;
+            const emAnalise = processosDoPainel.filter(p => p.etapa === 'Análise' || p.etapa === 'Em Análise').length;
+            const concluidos = processosDoPainel.filter(p => p.etapa === 'Finalizado' || p.etapa === 'Deferido' || p.etapa === 'Indeferido').length;
 
-            // 4. Total de Processos Ativos buscados do Supabase
-            definirTextoSeguro('dash-processos', globalProcessos.length);
+            // 3. INJEÇÃO SEGURA DOS VALORES NOS CARDS DO HTML
+            atualizarTextoSeguro('card-total-processos', totalGeral);
+            atualizarTextoSeguro('card-novos-processos', novos);
+            atualizarTextoSeguro('card-analise-processos', emAnalise);
+            atualizarTextoSeguro('card-concluidos-processos', concluidos);
 
-            // 5. Total de Municípios Únicos atendidos pelo banco
-            const municipiosUnicos = [...new Set(globalEscolas.map(e => e.municipio).filter(Boolean))];
-            definirTextoSeguro('dash-municipios', municipiosUnicos.length);
+            // 4. ATUALIZAÇÃO VISUAL DO TÍTULO DO ESCOPO (Opcional - Bom para o usuário saber o que está vendo)
+            const indicadorEscopo = document.getElementById('dashboard-escopo-titulo');
+            if (indicadorEscopo) {
+                if (usuarioLogado && usuarioLogado.perfil === 'Master') {
+                    indicadorEscopo.textContent = "Painel de Controle Visão Global (Todas as NTEs)";
+                } else if (usuarioLogado && usuarioLogado.nte) {
+                    indicadorEscopo.textContent = `Painel de Controle Restrito - ${usuarioLogado.nte.toUpperCase()}`;
+                }
+            }
+
+            console.log(`[Dashboard] Métricas recalculadas. Escopo: ${usuarioLogado?.perfil || 'Desconhecido'} | Registros: ${totalGeral}`);
         }
 
         function carregarEContarProcessosHorizontais() {
-            // Conta processos por fase e renderiza na tabela conforme filtro
-            renderizarProcessosFlutuantes();
-        }
+            const tbody = document.getElementById('tbody-processos');
+            if (!tbody) return;
 
-        function filtrarProcessosPorEtapa(fase) {
-            processoFaseFiltroAtivo = fase;
-            renderizarProcessosFlutuantes();
-        }
+            // PERFORMANCE & SEGURANÇA: Aplica a trava invisível por NTE na listagem
+            let processosVisiveis = globalProcessos;
 
-        function renderizarProcessosFlutuantes() {
-            const corpo = document.getElementById('tabela-processos-corpo');
-            if (!corpo) return;
-            corpo.innerHTML = '';
+            if (usuarioLogado && usuarioLogado.perfil !== 'Administrador' && usuarioLogado.nte) {
+                const nteDoUsuario = usuarioLogado.nte.toUpperCase().trim();
+                processosVisiveis = globalProcessos.filter(p => (p.nte || "").toUpperCase().trim() === nteDoUsuario);
+            }
 
-            // Filtra os processos com base na aba/fase selecionada
-            const processosFiltrados = globalProcessos.filter(p => {
-                if (processoFaseFiltroAtivo === "TODOS") return true;
-                return p.etapa.toUpperCase() === processoFaseFiltroAtivo.toUpperCase();
-            });
+            // Se houver campo de busca para processos, filtre aqui também sobre "processosVisiveis"
+            
+            tbody.innerHTML = "";
 
-            if (processosFiltrados.length === 0) {
-                corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo encontrado para esta fase.</td></tr>`;
+            if (processosVisiveis.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Nenhum processo localizado para sua NTE.</td></tr>`;
                 return;
             }
 
-            // Mapeamento sequencial das fases para o botão avançar saber qual é a próxima
-            const sequenciaFases = ["Desarquivamento", "Análise", "Conferência", "Finalizado"];
+            const fragmento = document.createDocumentFragment();
 
-            processosFiltrados.forEach(p => {
-                const indexAtual = sequenciaFases.findIndex(f => f.toUpperCase() === p.etapa.toUpperCase());
-                const proximaFase = indexAtual !== -1 && indexAtual < sequenciaFases.length - 1 ? sequenciaFases[indexAtual + 1] : null;
-
-                let botaoAcao = '';
-                if (proximaFase) {
-                    botaoAcao = `<button onclick="tramitarProcessoSupabase(${p.id}, '${proximaFase}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded transition">Avançar para ${proximaFase}</button>`;
-                } else {
-                    botaoAcao = `<span class="text-green-600 font-bold text-xs">✓ Concluído</span>`;
-                }
-
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-gray-100 hover:bg-gray-50 text-sm text-gray-700";
-                tr.innerHTML = `
-                    <td class="p-3 font-medium text-gray-900">${p.aluno}</td>
-                    <td class="p-3">${p.escola}</td>
-                    <td class="p-3">${p.documento}</td>
-                    <td class="p-3"><span class="px-2 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800">${p.etapa}</span></td>
-                    <td class="p-3">${p.dias} dias</td>
-                    <td class="p-3 text-xs text-gray-500">${p.nte || 'NTE 01'}</td>
-                    <td class="p-3">${botaoAcao}</td>
+            processosVisiveis.forEach((p, index) => {
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm";
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-center">${index + 1}</td>
+                    <td class="px-4 py-3 font-semibold text-gray-900">${p.aluno || "Não Informado"}</td>
+                    <td class="px-4 py-3 text-gray-600">${p.escola || "-"}</td>
+                    <td class="px-4 py-3 text-center text-gray-600">${p.nte || "-"}</td>
+                    <td class="px-4 py-3 text-gray-600">${p.documento || "-"}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-800">${p.etapa || "Triagem"}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center text-gray-500">${p.dias || 0} dias</td>
                 `;
-                corpo.appendChild(tr);
+                fragmento.appendChild(row);
             });
+
+            tbody.appendChild(fragmento);
         }
 
         // FUNÇÃO QUE EXECUTA O UPDATE DE FASE NO BANCO DE DADOS
@@ -813,6 +966,27 @@
                 console.error("Erro ao carregar escolas do Supabase:", error.message);
                 return;
             }
+
+            // Transforma o formato de colunas do banco no formato que o seu HTML usa
+            globalEscolas = (data || []).map(e => ({
+                codMec: e.cod_mec || e.codMec,
+                nome: e.nome,
+                municipio: e.municipio,
+                dep: e.dep,
+                acervo: e.acervo,
+                nte: e.nte
+            }));
+
+            // Força a atualização dos contadores visuais do painel em tempo real
+            carregarDadosDashboardReal();
+        }
+            
+            // Alimenta a memória global com os dados vindos do Supabase
+            globalEscolas = data || [];
+            
+            // Atualiza os contadores visuais do painel em tempo real
+            carregarDadosDashboardReal();
+        }
 
             // Transforma o formato de colunas do banco no formato que o seu HTML usa
             globalEscolas = data.map(e => ({
@@ -904,8 +1078,24 @@
             reader.readAsArrayBuffer(file);
         }
 
-        function mudarPaginaEscola(dir) {}
-        function filtrarPorBusca() {}
+        // ... o código que vinha antes da linha 1013 ...
+
+        // 1. RENDERIZAR A TABELA DE ESCOLAS COM FILTRO POR NTE E FRAGMENTOS DE DOM (ALTA PERFORMANCE)
+        function renderizarTabelaEscolas() {
+            // ... todo o corpo da função que passei acima ...
+        }
+
+        function filtrarPorBusca() {
+            // ... corpo da função ...
+        }
+
+        function mudarPaginaEscola(direcao) {
+            // ... corpo da função ...
+        }
+
+// AQUI RECOMEÇA O SEU CÓDIGO ORIGINAL QUE ESTAVA NA LINHA 1015:
+// BUSCAR PROCESSOS DIRETAMENTE DO SUPABASE
+async function () {
     // BUSCAR PROCESSOS DIRETAMENTE DO SUPABASE
         async function carregarProcessosDoSupabase() {
             const { data, error } = await supabase
@@ -927,14 +1117,118 @@
                 dias: p.dias_decorridos,
                 nte: p.nte
             }));
-
+// 1036: Início do bloco de encerramento pós-mapeamento
+            // Executa a renderização das tabelas de processos se as funções existirem
             if (typeof carregarEContarProcessosHorizontais === "function") {
                 carregarEContarProcessosHorizontais();
             } else if (typeof renderizarProcessosFlutuantes === "function") {
                 renderizarProcessosFlutuantes();
             }
+
+            // Atualiza os contadores visuais do painel em tempo real com os novos processos
+            carregarDadosDashboardReal();
+        } // <-- Esta chave fecha oficialmente a função 
+    // RENDERIZAR E FILTRAR A TABELA DE PROCESSOS CONFORME REGRA DE ACESSO
+        function carregarEContarProcessosHorizontais() {
+            const tbody = document.getElementById('tbody-processos');
+            if (!tbody) return;
+
+            // 1. FILTRAGEM EM MEMÓRIA RAM (CACHE LOCAL)
+            let processosFiltrados = globalProcessos;
+
+            // TRAVA DE SEGURANÇA: Se o usuário NÃO for Master, ele só enxerga os processos da sua própria NTE
+            if (usuarioLogado && usuarioLogado.perfil !== 'Master' && usuarioLogado.nte) {
+                const nteDoUsuario = usuarioLogado.nte.toUpperCase().trim();
+                processosFiltrados = processosFiltrados.filter(p => 
+                    (p.nte || "").toUpperCase().trim() === nteDoUsuario
+                );
+            }
+
+            // FILTRO ADICIONAL POR ETAPA/FASE DO PROCESSO
+            if (processofaseFiltroAtivo && processofaseFiltroAtivo !== "TODOS") {
+                processosFiltrados = processosFiltrados.filter(p => {
+                    const etapaAtual = (p.etapa || "").toUpperCase().trim();
+                    const filtroMapeado = processofaseFiltroAtivo.toUpperCase().trim();
+                    return etapaAtual === filtroMapeado;
+                });
+            }
+
+            // 2. LIMPEZA E RENDERIZAÇÃO DA INTERFACE
+            tbody.innerHTML = "";
+
+            if (processosFiltrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Nenhum processo localizado para os critérios aplicados.</td></tr>`;
+                return;
+            }
+
+            // Otimização por DocumentFragment para evitar travamentos
+            const fragmento = document.createDocumentFragment();
+
+            processosFiltrados.forEach((p, index) => {
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm transition-colors";
+                
+                // Definição visual das badges de status
+                let badgeClasse = "bg-gray-100 text-gray-800";
+                if (p.etapa === 'Análise' || p.etapa === 'Em Análise') badgeClasse = "bg-amber-100 text-amber-800";
+                if (p.etapa === 'Finalizado' || p.etapa === 'Deferido') badgeClasse = "bg-green-100 text-green-800";
+                if (p.etapa === 'Novo' || p.etapa === 'Desarquivamento') badgeClasse = "bg-blue-100 text-blue-800";
+
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-center font-medium text-gray-700">${index + 1}</td>
+                    <td class="px-4 py-3 font-semibold text-gray-900">${p.aluno || "Não Informado"}</td>
+                    <td class="px-4 py-3 text-gray-600">${p.escola || "-"}</td>
+                    <td class="px-4 py-3 text-center text-gray-600 font-medium">${p.nte || "-"}</td>
+                    <td class="px-4 py-3 text-gray-600">${p.documento || "-"}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 rounded text-xs font-bold ${badgeClasse}">
+                            ${p.etapa || "Triagem"}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="visualizarDetalhesProcesso('${p.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded text-xs font-semibold border border-indigo-200 transition-colors">
+                            Ver
+                        </button>
+                    </td>
+                `;
+                fragmento.appendChild(row);
+            });
+
+            tbody.appendChild(fragmento);
         }
 
+        // CONTROLADOR DAS ABAS DE FILTRAGEM RÁPIDA DE ETAPAS
+        function alterarFiltroEtapaProcesso(novaEtapa) {
+            processofaseFiltroAtivo = novaEtapa;
+            carregarEContarProcessosHorizontais();
+        }
+
+// BUSCAR USUÁRIOS COMPLETO DO SUPABASE
+        async function carregarUsuariosDoSupabase() {
+            console.log("[Cache] Iniciando busca de usuários no Supabase...");
+            
+            // Faz a requisição de leitura na tabela customizada 'usuarios'
+            const { data, error } = await supabase
+                .from('usuarios')
+                .select('*')
+                .order('nome', { ascending: true });
+
+            // Trata erros de requisição (ex: tabela inexistente ou falha de conexão)
+            if (error) {
+                console.error("Erro crítico ao carregar lista de usuários:", error.message);
+                return;
+            }
+
+            // Alimenta a memória cache do sistema (let globalUsuarios)
+            globalUsuarios = data || [];
+            console.log(`[Cache] Sucesso! ${globalUsuarios.length} usuários armazenados localmente.`);
+            
+            // Se houver uma função responsável por desenhar a tabela de controle de usuários, ela é disparada aqui
+            if (typeof renderizarTabelaUsuarios === "function") {
+                renderizarTabelaUsuarios();
+            }
+        }
+    
         // SALVAR NOVO PROCESSO DE ALUNO NO SUPABASE
         async function salvarNovaSolicitacao(event) {
             event.preventDefault();
@@ -968,7 +1262,14 @@
                 alert("Erro ao criar processo no Supabase: " + error.message);
                 return;
             }
+            // SE CHEGOU AQUI, DEU CERTO! REGISTRA O LOG DE AUDITORIA
+            await registrarLog("Criou Processo", `Aluno: ${nomeAluno.toUpperCase()} | Escola: ${nomeEscola} | Doc: ${documento}`);
 
+            alert("Solicitação salva com sucesso no banco de dados!");
+            
+            // Recarrega os processos localmente para atualizar a tabela e o painel automaticamente
+            await carregarProcessosDoSupabase();
+            }
             alert("Processo aberto com sucesso!");
             fecharFormularioNovaSolicitacao();
             await carregarProcessosDoSupabase();
@@ -977,6 +1278,64 @@
         function fecharFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.add('hidden'); }
         function abrirModalNovaEscola() { alert('Função de cadastro manual de escola.'); }
 
+    // INICIALIZAÇÃO AUTOMÁTICA COMPATÍVEL COM SUPABASE
+        document.addEventListener("DOMContentLoaded", async () => {
+            // Garante que a tela de login inicie visível
+            const loginSection = document.getElementById('tela-login');
+            const dashSection = document.getElementById('sistema-dashboard');
+            if(loginSection) loginSection.classList.remove('hidden');
+            if(dashSection) dashSection.classList.add('hidden');
+
+            // Vincula dinamicamente o evento de submit do formulário de login
+            const formLogin = document.querySelector('#tela-login form') || document.getElementById('form-login');
+            if (formLogin) {
+                formLogin.addEventListener('submit', realizarLogin);
+            } else {
+                // Alternativa caso seja um botão simples no HTML antigo
+                const btnLogin = document.querySelector('#tela-login button');
+                if (btnLogin) btnLogin.addEventListener('click', realizarLogin);
+            }
+
+            // Busca as escolas e processos do banco em background imediatamente
+            await carregarEscolasDoSupabase();
+            await carregarProcessosDoSupabase();
+        });
+            const senha = campoSenha.value;
+
+            if (!email || !senha) {
+                alert("Por favor, preencha todos os campos.");
+                return;
+            }
+
+            alert("Autenticando credenciais...");
+
+            // Faz a chamada oficial de login no Supabase Auth
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: senha,
+            });
+
+            if (error) {
+                alert("Erro ao realizar login: " + error.message);
+                return;
+            }
+
+            // Armazena os dados do usuário logado na sessão global
+            usuarioLogado = data.user;
+            registrarLog("Login", "Usuário autenticou com sucesso no sistema.");
+
+            // Faz a transição de telas ocultando o login e mostrando o painel
+            const loginSection = document.getElementById('tela-login');
+            const dashSection = document.getElementById('sistema-dashboard');
+            
+            if (loginSection) loginSection.classList.add('hidden');
+            if (dashSection) dashSection.classList.remove('hidden');
+
+            // Atualiza os dados visuais do painel após o login bem-sucedido
+            if (typeof navegar === 'function') {
+                navegar('painel');
+            }
+        }
         // INICIALIZAÇÃO AUTOMÁTICA COMPATÍVEL COM SUPABASE
         document.addEventListener("DOMContentLoaded", async () => {
             // Garante que a tela de login inicie visível
@@ -985,9 +1344,21 @@
             if(loginSection) loginSection.classList.remove('hidden');
             if(dashSection) dashSection.classList.add('hidden');
 
+            // Vincula dinamicamente o evento de submit do formulário de login
+            const formLogin = document.querySelector('#tela-login form') || document.getElementById('form-login');
+            if (formLogin) {
+                formLogin.addEventListener('submit', realizarLogin);
+            } else {
+                const btnLogin = document.querySelector('#tela-login button');
+                if (btnLogin) btnLogin.addEventListener('click', realizarLogin);
+            }
+
             // Busca as escolas e processos do banco em background imediatamente
             await carregarEscolasDoSupabase();
             await carregarProcessosDoSupabase();
+
+            // Renderiza os contadores do dashboard com os dados recém-chegados do banco
+            carregarDadosDashboardReal();
         });
         });
     </script>
