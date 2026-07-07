@@ -999,27 +999,58 @@
                 acervo: e.possui_acervo
             }));
 
-            // Chama a função existente para desenhar a tabela na tela
-            renderizarListaEscolasBufferMemoria();
-        }
-        function renderizarListaEscolasBufferMemoria() {
-            const corpo = document.getElementById('tabela-escolas-corpo');
-            if(globalEscolas.length === 0) {
-                corpo.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 font-medium">Nenhuma escola catalogada. Importe uma planilha Excel.</td></tr>`;
-                return;
-            }
-            corpo.innerHTML = "";
-            globalEscolas.forEach(e => {
-                let tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 font-medium";
-                tr.innerHTML = `
-                    <td class="p-3 font-bold text-gray-900">${e.nome}</td>
-                    <td class="p-3">${e.municipio}</td>
-                    <td class="p-3">${e.dep}</td>
-                    <td class="p-3">${e.situacao || 'Extinta'}</td>
-                    <td class="p-3">${e.acervo || 'Não'}</td>
-                    <td class="p-3 text-center"><button class="bg-gray-200 text-gray-700 px-2 py-1 rounded">Ações</button></td>`;
-                corpo.appendChild(tr);
+          // Chama a função existente para desenhar a tabela na tela
+        renderizarListaEscolasBufferMemoria();
+          } catch (err) {
+        console.error("Erro ao processar escolas:", err);
+    }
+} // <-- Esta chave fecha unicamente a função de carregamento anterior
+
+function renderizarListaEscolasBufferMemoria() {
+    const corpo = document.getElementById('tabela-escolas-corpo');
+    if (!corpo) return; // Proteção essencial para evitar erros caso a tabela não esteja na tela
+
+    if (globalEscolas.length === 0) {
+        corpo.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 font-medium">Nenhuma escola catalogada. Importe uma planilha Excel.</td></tr>`;
+        return;
+    }
+
+    corpo.innerHTML = "";
+
+    globalEscolas.forEach(e => {
+        let tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50 font-medium";
+        tr.innerHTML = `
+            <td class="p-3 font-bold text-gray-900">${e.nome}</td>
+            <td class="p-3">${e.municipio}</td>
+            <td class="p-3">${e.dep}</td>
+            <td class="p-3">${e.situacao || 'Extinta'}</td>
+            <td class="p-3">${e.acervo || 'Não'}</td>
+            <td class="p-3 text-center">
+                <button class="bg-gray-200 text-gray-700 px-2 py-1 rounded">Ações</button>
+            </td>`;
+        corpo.appendChild(tr);
+    }); // <-- Fecha corretamente o loop das escolas
+
+    // Atualiza com segurança o contador de registros na tela
+    const labelContador = document.getElementById('info-quantidade-escolas-carregadas');
+    if (labelContador) {
+        labelContador.innerText = `Exibindo: ${globalEscolas.length} registros`;
+    }
+} // <-- Fecha oficialmente a função renderizarListaEscolasBufferMemoria
+             <td class="p-3">${e.acervo || 'Não'}</td>
+             <td class="p-3 text-center">
+                <button class="bg-gray-200 text-gray-700 px-2 py-1 rounded">Ações</button>
+            </td>`;
+         corpo.appendChild(tr);
+     }); // <-- Fecha corretamente o loop das escolas
+ 
+     // Atualiza com segurança o contador de registros na tela
+     const labelContador = document.getElementById('info-quantidade-escolas-carregadas');
+     if (labelContador) {
+         labelContador.innerText = `Exibindo: ${globalEscolas.length} registros`;
+     }
+ } // <-- Fecha oficialmente a função renderizarListaEscolasBufferMemoria
             });
             document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${globalEscolas.length} registros`;
         }
