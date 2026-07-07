@@ -410,13 +410,20 @@
         }
 
         function abrirModalProcesso() {
-            document.getElementById('form-processo').reset();
-            document.getElementById('proc-id').value = "";
-            document.getElementById('titulo-modal-processo').innerText = "📁 Novo Fluxo de Processo";
-            document.getElementById('modal-processo').classList.remove('hidden');
-        }
+    document.getElementById('form-processo').reset();
+    document.getElementById('proc-id').value = "";
+    document.getElementById('titulo-modal-processo').innerText = "📁 Novo Fluxo de Processo";
+    
+    const modal = document.getElementById('modal-processo');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
 
-        function fecharModalProcesso() { document.getElementById('modal-processo').classList.add('hidden'); }
+function fecharModalProcesso() { 
+    const modal = document.getElementById('modal-processo');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
 
         function editarProcessoClick(id) {
             const list = window.processosDB || [];
@@ -482,13 +489,20 @@
         }
 
         function abrirModalEscola() {
-            document.getElementById('form-escola').reset();
-            document.getElementById('esc-id').value = "";
-            document.getElementById('titulo-modal-escola').innerText = "🗄️ Cadastro de Unidade Escolar";
-            document.getElementById('modal-escola').classList.remove('hidden');
-        }
+    document.getElementById('form-escola').reset();
+    document.getElementById('esc-id').value = "";
+    document.getElementById('titulo-modal-escola').innerText = "🗄️ Cadastro de Unidade Escolar";
+    
+    const modal = document.getElementById('modal-escola');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
 
-        function fecharModalEscola() { document.getElementById('modal-escola').classList.add('hidden'); }
+        function fecharModalEscola() { 
+    const modal = document.getElementById('modal-escola');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
 
         function editarEscolaClick(id) {
             const list = window.escolasDB || [];
@@ -543,14 +557,30 @@
             });
         }
 
-        function abrirModalUsuario() {
-            document.getElementById('form-usuario').reset();
-            document.getElementById('user-id').value = "";
-            document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastro de Operador Regional";
-            document.getElementById('modal-usuario').classList.remove('hidden');
-        }
+        // ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
+function controlarModalUsuario(deveAbrir = false) {
+    const modal = document.getElementById('modal-usuario');
+    if (!modal) return;
 
-        function fecharModalUsuario() { document.getElementById('modal-usuario').classList.add('hidden'); }
+    if (deveAbrir) {
+        document.getElementById('form-usuario').reset();
+        document.getElementById('user-id').value = "";
+        document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastro de Operador Regional";
+    }
+
+    // Alterna as classes de visibilidade do Tailwind de forma limpa
+    modal.classList.toggle('hidden', !deveAbrir);
+    modal.classList.toggle('flex', deveAbrir);
+}
+
+// Atalhos para o HTML continuar funcionando sem mexer nos botões
+function abrirModalUsuario() { 
+    controlarModalUsuario(true); 
+}
+
+function fecharModalUsuario() { 
+    controlarModalUsuario(false); 
+}
 
         function editarUsuarioClick(id) {
             const list = window.usuariosDB || [];
