@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIGEE - Sistema de Gestão de Escolas Extintas (SEC/BA)</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 font-normal">
+
+    <div id="tela-login" class="min-h-screen flex items-center justify-center bg-blue-900 px-4">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <div class="text-center mb-6">
+                <span class="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">SEC / BA</span>
+                <h1 class="text-3xl font-extrabold text-blue-900 mt-2">SIGEE</h1>
+                <p class="text-gray-500 text-sm mt-1">Gestão de Escolas Extintas e Acervos</p>
+            </div>
+            <form id="form-login" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-semibold mb-2">E-mail Corporativo</label>
+                    <input type="email" id="login-email" required class="w-full px-4 py-2 border rounded-lg focus:outline-none placeholder:text-gray-400" placeholder="nome.sobrenome@enova.educacao.ba.gov.br">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-semibold mb-2">Senha</label>
+                    <input type="password" id="login-senha" required class="w-full px-4 py-2 border rounded-lg focus:outline-none placeholder:text-gray-400" placeholder="Sua senha">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-lg shadow-md transition cursor-pointer">Entrar no Sistema</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="sistema-dashboard" class="hidden min-h-screen flex flex-col md:flex-row">
+        <aside class="w-full md:w-64 bg-blue-950 text-white flex flex-col shadow-xl">
+            <div class="p-5 bg-blue-900 border-b border-blue-800">
+                <h2 class="text-2xl font-black tracking-wider text-amber-400">SIGEE</h2>
+                <div class="mt-2 text-xs text-blue-200">
+                    <p id="user-nome" class="font-bold"></p>
+                    <p id="user-perfil" class="italic text-amber-500"></p>
+                </div>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button onclick="navegar('painel')" class="w-full text-left px-4 py-2.5 rounded-lg font-medium hover:bg-blue-800 transition cursor-pointer">📊 Dashboard</button>
+                <button onclick="navegar('processos')" class="w-full text-left px-4 py-2.5 rounded-lg font-medium hover:bg-blue-800 transition cursor-pointer">📁 Processos (Fluxo)</button>
+                <button onclick="navegar('escolas')" class="w-full text-left px-4 py-2.5 rounded-lg font-medium hover:bg-blue-800 transition cursor-pointer">🗄️ Catálogo de Escolas</button>
+                <button id="menu-usuarios" onclick="navegar('usuarios')" class="hidden w-full text-left px-4 py-2.5 rounded-lg font-medium hover:bg-blue-800 transition cursor-pointer">👥 Controle de Usuários</button>
+                <button id="menu-logs" onclick="navegar('logs')" class="hidden w-full text-left px-4 py-2.5 rounded-lg font-medium hover:bg-blue-800 transition cursor-pointer">📜 Aba de Registros (Logs)</button>
+            </nav>
+            <div class="p-4 border-t border-blue-900">
+                <button onclick="logout()" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded-lg text-sm transition cursor-pointer">Sair</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-4 md:p-6 overflow-y-auto">
+            
+            <section id="aba-painel" class="space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-4">
+                    <div><h1 class="text-3xl font-bold text-blue-900">Dashboard de Monitoramento</h1></div>
+                </div>
+                
+                <div class="space-y-2">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">🏢 Informações Gerais</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-600"><p class="text-xs text-gray-500 font-medium">Escolas Catalogadas</p><p id="dash-escolas" class="text-2xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-emerald-500"><p class="text-xs text-gray-500 font-medium">Acervos Recolhidos</p><p id="dash-acervos" class="text-2xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-teal-500"><p class="text-xs text-gray-500 font-medium">Escolas Estaduais</p><p id="dash-estaduais" class="text-2xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500"><p class="text-xs text-gray-500 font-medium">Total de Municípios</p><p id="dash-municipios" class="text-2xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-amber-500"><p class="text-xs text-gray-500 font-medium">Técnicos Cadastrados</p><p id="dash-usuarios" class="text-2xl font-bold mt-1">0</p></div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 pt-2">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">⚙️ Informações de Processo (Filtrado por abrangência)</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-400 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Desarquivamento</p><p id="dash-proc-desarquivamento" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-purple-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Análise</p><p id="dash-proc-analise" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-red-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Pendência</p><p id="dash-proc-pendencia" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-blue-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Digitação</p><p id="dash-proc-digitacao" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-orange-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Conferência</p><p id="dash-proc-conferencia" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-yellow-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Assinatura</p><p id="dash-proc-assinatura" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-emerald-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Aguard. Retirada</p><p id="dash-proc-aguardando" class="text-xl font-bold mt-1">0</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-600 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Retirado</p><p id="dash-proc-retirado" class="text-xl font-bold mt-1">0</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="aba-processos" class="hidden space-y-4">
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl border shadow-xs">
+                    <div><h2 class="text-lg font-bold text-blue-900">Gerenciamento de Fluxos Dinâmicos</h2></div>
+                    <button onclick="abrirFormularioNovaSolicitacao()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-lg text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition">➕ 📥 Nova Solicitação</button>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border shadow-sm space-y-2">
+                    <div class="flex flex-wrap items-center gap-1.5 w-full">
+                        <button onclick="filtrarProcessosPorEtapa('TODOS')" id="btn-fase-todos" class="px-2.5 py-1.5 bg-blue-900 text-white rounded-lg font-bold text-[11px] cursor-pointer transition">📋 Todos (<span id="count-horiz-todos">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Desarquivamento')" id="btn-fase-desarquivamento" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">📂 Desarq (<span id="count-horiz-desarquivamento">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Análise')" id="btn-fase-analise" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🔍 Análise (<span id="count-horiz-analise">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Pendência')" id="btn-fase-pendencia" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">⚠️ Pend (<span id="count-horiz-pendencia">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Digitação')" id="btn-fase-digitacao" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">⌨️ Digit (<span id="count-horiz-digitacao">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Conferência')" id="btn-fase-conferencia" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🧐 Conf (<span id="count-horiz-conferencia">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Assinatura')" id="btn-fase-assinatura" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">✍️ Assin (<span id="count-horiz-assinatura">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Aguardando Retirada')" id="btn-fase-aguardando" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🎁 Aguard (<span id="count-horiz-aguardando">0</span>)</button>
+                        <button onclick="filtrarProcessosPorEtapa('Retirado')" id="btn-fase-retirado" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">✅ Retirado (<span id="count-horiz-retirado">0</span>)</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="bg-white p-2 border rounded-xl shadow-xs">
+                        <input type="text" id="busca-proc-nome" placeholder="🔍 Filtrar processos por nome do aluno..." oninput="renderizarProcessosFlutuantes()" class="w-full p-2 bg-gray-50 text-xs border rounded-lg focus:outline-none font-medium">
+                    </div>
+                    
+                    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <table class="w-full text-left border-collapse table-fixed text-[11px]">
+                            <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
+                                <tr>
+                                    <th class="p-2.5 w-[20%]">Aluno / Doc</th>
+                                    <th class="p-2.5 w-[25%]">Instituição / NTE</th>
+                                    <th class="p-2.5 w-[12%] text-center">Etapa Atual</th>
+                                    <th class="p-2.5 w-[15%] text-center">Tempo na Etapa</th>
+                                    <th class="p-2.5 w-[28%] text-center">Ações Operacionais</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-processos-corpo" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="aba-escolas" class="hidden space-y-6">
+                <div class="bg-white p-4 rounded-xl border shadow-xs flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <button onclick="abrirModalNovaEscola()" class="bg-blue-900 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm hover:bg-blue-950 transition cursor-pointer">➕ Cadastrar Nova Escola</button>
+                        <label id="btn-importar-dados-master" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm cursor-pointer transition">
+                            📥 Importar Dados (Excel)
+                            <input type="file" id="input-importar-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="processarImportacaoOtimizada(event)">
+                        </label>
+                    </div>
+                    <div id="info-quantidade-escolas-carregadas" class="text-xs font-semibold text-gray-500">Exibindo: 0 registros</div>
+                </div>
+
+                <div id="card-progresso-importacao" class="hidden bg-white p-4 rounded-xl border shadow-sm space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-700">
+                        <span id="label-status-importacao">Processando registros...</span>
+                        <span id="percentual-importacao-texto">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="barra-progresso-importacao" class="bg-emerald-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border shadow-xs">
+                    <input type="text" id="busca-escola" placeholder="🔍 Pesquisar por código MEC, Nome da Escola ou Cidade..." oninput="filtrarPorBusca()" class="w-full p-3 border border-gray-300 rounded-lg text-xs bg-gray-50 font-medium focus:outline-none">
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-[11px]">
+                            <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
+                                <tr>
+                                    <th class="p-3">MEC</th>
+                                    <th class="p-3">Nome da Escola</th>
+                                    <th class="p-3">Município</th>
+                                    <th class="p-3">NTE / Dep. Adm</th>
+                                    <th class="p-3">Situação</th>
+                                    <th class="p-3">Acervo</th>
+                                    <th class="p-3 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-escolas-corpo" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-gray-50 border-t flex items-center justify-between text-xs font-semibold">
+                        <button onclick="mudarPaginaEscola(-1)" id="btn-escola-anterior" class="px-3 py-1 bg-white border rounded shadow-xs hover:bg-gray-100 disabled:opacity-40">Anterior</button>
+                        <span id="txt-escola-paginacao">Página 1</span>
+                        <button onclick="mudarPaginaEscola(1)" id="btn-escola-proxima" class="px-3 py-1 bg-white border rounded shadow-xs hover:bg-gray-100 disabled:opacity-40">Próxima</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="aba-usuarios" class="hidden space-y-6">
+                <div class="flex justify-between items-center border-b pb-4">
+                    <h1 class="text-3xl font-bold text-blue-900">Controle de Usuários</h1>
+                    <button onclick="abrirModalCriarUsuarioMaster()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer transition">➕ Cadastrar Técnico</button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-gray-100 font-semibold border-b">
+                            <tr>
+                                <th class="p-3">Nome / E-mail</th>
+                                <th class="p-3">Perfil</th>
+                                <th class="p-3">NTE Associado</th>
+                                <th class="p-3 text-center">Status</th>
+                                <th class="p-3 text-center">Ações Administrativas Master</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-usuarios-corpo" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="aba-logs" class="hidden space-y-6">
+                <div class="border-b pb-4"><h1 class="text-3xl font-bold text-blue-900">Histórico de Atividades</h1></div>
+                <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-gray-100 font-semibold border-b">
+                            <tr><th class="p-4">Data/Hora</th><th class="p-4">Técnico</th><th class="p-4">E-mail</th><th class="p-4">Ação Executada</th></tr>
+                        </thead>
+                        <tbody id="tabela-logs-corpo" class="divide-y divide-gray-100 text-gray-700"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modal-fluxo-desarquivamento" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">📥 Triagem: Documento Recebido</h3><button onclick="fecharModalFluxo('desarquivamento')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoDesarquivamento(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f00-id">
+                
+                <div id="f00-container-alertas" class="hidden space-y-2"></div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tipo de Arquivo</label>
+                    <select id="f00-tipo" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50">
+                        <option value="">-- Selecione o Tipo de Arquivo --</option> <option value="Pasta">Pasta</option> <option value="Atas">Atas</option> <option value="Cadernetas">Cadernetas</option> <option value="Folha de Ponto">Folha de Ponto</option> <option value="Boletim">Boletim</option> <option value="Parecer">Parecer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Local do Arquivo</label>
+                    <select id="f00-local" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50">
+                        <option value="">-- Selecione o Local do Arquivo --</option> <option value="GLPI">GLPI</option> <option value="E-mail">E-mail</option> <option value="E-DOC">E-DOC</option> <option value="SIGEDUC">SIGEDUC</option> <option value="NTE">NTE</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Prioridade</label>
+                    <select id="f00-prioridade" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50">
+                        <option value="">-- Selecione a Prioridade --</option> <option value="Normal">Normal</option> <option value="Autenticidade">Autenticidade</option> <option value="Atestado">Atestado</option> <option value="Declaração">Declaração</option> <option value="2ª via">2ª via</option> <option value="MP">MP</option> <option value="CEE">CEE</option> <option value="Exterior">Exterior</option> <option value="Urgente">Urgente</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecionar Analista (Filtrado por NTE)</label>
+                    <select id="f00-analista" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50"></select>
+                </div>
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-amber-950">
+                        <input type="checkbox" id="f00-chk-email" required class="mt-0.5" onchange="toggleBotaoHabilitar('f00-chk-email', 'f00-submit')">
+                        <span>CONFIRMO ENVIAR E-MAIL: 02-Aluno (Análise)</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('desarquivamento')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f00-submit" disabled class="bg-emerald-600 disabled:opacity-40 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-analise" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">🔍 Análise Operacional</h3><button onclick="fecharModalFluxo('analise')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoAnalise(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f01-id">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Existe Pendência?</label>
+                    <select id="f01-pendencia" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50" onchange="onChangePendenciaAnalise()">
+                        <option value="não">Não</option> <option value="sim">Sim</option>
+                    </select>
+                </div>
+                <div id="box-pendencia-analise" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg space-y-3">
+                    <div class="flex gap-4 text-xs font-semibold">
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="f01-p-aluno" onchange="onChangeTipoPendenciaAnalise()"> Pendência Aluno</label>
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="f01-p-inst" onchange="onChangeTipoPendenciaAnalise()"> Pendência Instituição</label>
+                    </div>
+                    <div>
+                        <textarea id="f01-txt-detalhe" class="w-full p-2 border rounded text-xs focus:outline-none" placeholder="Informe o detalhe..."></textarea>
+                    </div>
+                    <div id="msg-email-pendencia" class="text-xs font-bold text-blue-900 bg-white p-2 rounded border border-blue-200 italic"></div>
+                </div>
+                <div id="box-fluxo-normal-analise" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecionar Digitador</label>
+                        <select id="f01-digitador" class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50"></select>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-blue-950">
+                            <input type="checkbox" id="f01-chk-email" class="mt-0.5" onchange="atualizarBotaoSubmissaoAnalise()">
+                            <span>CONFIRMO ENVIAR E-MAIL: 03-Aluno (Digitação)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('analise')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f01-submit" class="bg-blue-900 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-pendencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">⚠️ Regularização de Pendência</h3><button onclick="fecharModalFluxo('pendencia')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoPendencia(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f02-id">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Status de Recebimento</label>
+                    <select id="f02-recebimento" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50" onchange="onChangeRecebimentoPendencia()">
+                        <option value="total">Documento Recebido Total</option> <option value="parcial">Documento Recebido Parcial</option>
+                    </select>
+                </div>
+                <div id="box-parcial-pendencia" class="hidden">
+                    <textarea id="f02-txt-pendente" class="w-full p-2 border rounded text-xs focus:outline-none bg-gray-50" placeholder="Especifique os documentos faltantes..."></textarea>
+                </div>
+                <div id="box-total-pendencia" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecionar Digitador</label>
+                        <select id="f02-digitador" class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50"></select>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-blue-950">
+                        <input type="checkbox" id="f02-chk-email" required class="mt-0.5" onchange="toggleBotaoHabilitar('f02-chk-email', 'f02-submit')">
+                        <span>CONFIRMO ENVIAR E-MAIL: 03-Aluno (Digitação)</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('pendencia')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f02-submit" disabled class="bg-blue-900 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-digitacao" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">⌨️ Enviar para Conferência</h3><button onclick="fecharModalFluxo('digitacao')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoDigitacao(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f05-id">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecionar Conferente</label>
+                    <select id="f05-conferente" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50"></select>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-blue-950">
+                        <input type="checkbox" id="f05-chk-email" required class="mt-0.5" onchange="toggleBotaoHabilitar('f05-chk-email', 'f05-submit')">
+                        <span>CONFIRMO ENVIAR E-MAIL: 04-Aluno (Conferência)</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('digitacao')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f05-submit" disabled class="bg-indigo-600 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-conferencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">🧐 Enviar para Assinatura</h3><button onclick="fecharModalFluxo('conferencia')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoConferencia(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f06-id">
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-blue-950">
+                        <input type="checkbox" id="f06-chk-email" required class="mt-0.5" onchange="toggleBotaoHabilitar('f06-chk-email', 'f06-submit')">
+                        <span>CONFIRMO ENVIAR E-MAIL: 05-Aluno (Assinatura)</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('conferencia')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f06-submit" disabled class="bg-orange-600 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-assinatura" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">✍️ Concluir e Deferir Processo</h3><button onclick="fecharModalFluxo('assinatura')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoAssinatura(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f07-id">
+                <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-semibold text-emerald-950">
+                        <input type="checkbox" id="f07-chk-email" required class="mt-0.5" onchange="toggleBotaoHabilitar('f07-chk-email', 'f07-submit')">
+                        <span>CONFIRMO ENVIAR E-MAIL: 06-Aluno (Deferido)</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('assinatura')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Voltar</button>
+                    <button type="submit" id="f07-submit" disabled class="bg-emerald-600 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Atualizar Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-fluxo-aguardando" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">🎁 Entrega e Retirada</h3><button onclick="fecharModalFluxo('aguardando')" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="executarTransicaoAguardando(event)" class="p-5 space-y-4">
+                <input type="hidden" id="f08-id">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Forma de Retirada</label>
+                    <select id="f08-retirada" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none bg-gray-50" onchange="onChangeFormaRetirada()">
+                        <option value="solicitante">Retirada pelo Solicitante</option> <option value="terceiros">Retirada por Terceiros</option>
+                    </select>
+                </div>
+                <div id="box-terceiros-retirada" class="hidden space-y-3">
+                    <div>
+                        <input type="text" id="f08-nome-terceiro" class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none" placeholder="Nome Completo do Terceiro">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalFluxo('aguardando')" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-gray-800 text-white font-bold px-5 py-2 rounded-lg text-xs shadow cursor-pointer">Mudar Etapa e Finalizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-nova-solicitacao" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white w-full max-w-xl rounded-xl shadow-2xl my-8 overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 class="font-bold text-sm">📥 Iniciar Nova Solicitação de Aluno</h3><button onclick="fecharModalNovaSolicitacao()" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="salvarNovaSolicitacao(event)" class="p-5 space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome Completo do Aluno</label>
+                    <input type="text" id="novo-proc-aluno" required class="w-full p-2 border rounded-lg text-xs uppercase focus:outline-none font-medium">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecione a Instituição de Ensino</label>
+                    <select id="novo-proc-escola" required onchange="handleSelecaoInstituicaoFluxoAutomatico()" class="w-full p-2 border rounded-lg text-xs focus:outline-none bg-amber-50 font-semibold"></select>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Código MEC</label>
+                        <input type="text" id="novo-autofill-mec" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">NTE Correspondente</label>
+                        <input type="text" id="novo-autofill-nte" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Município</label>
+                        <input type="text" id="novo-autofill-municipio" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Dep. Administrativo</label>
+                        <input type="text" id="novo-autofill-dep" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Situação Funcional</label>
+                        <input type="text" id="novo-autofill-situacao" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Acervo SEC</label>
+                        <input type="text" id="novo-autofill-acervo" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Local Físico do Acervo</label>
+                        <input type="text" id="novo-autofill-local-acervo" readonly class="w-full p-1.5 bg-gray-200 border rounded text-xs font-bold text-gray-700 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tipo de Documento</label>
+                        <select id="novo-proc-documento" required class="w-full p-2 border rounded-lg text-xs bg-white focus:outline-none font-medium">
+                            <option value="HISTÓRICO">HISTÓRICO</option> <option value="VERACIDADE">VERACIDADE</option> <option value="DIPLOMA">DIPLOMA</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Modalidade</label>
+                        <select id="novo-proc-modalidade" required class="w-full p-2 border rounded-lg text-xs bg-white focus:outline-none font-medium">
+                            <option value="REGULAR">REGULAR</option> <option value="SUPLÊNCIA">SUPLÊNCIA</option> <option value="NÃO INFORMADO">NÃO INFORMADO</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ensino</label>
+                        <select id="novo-proc-ensino" required class="w-full p-2 border rounded-lg text-xs bg-white focus:outline-none font-medium">
+                            <option value="FUNDAMENTAL">FUNDAMENTAL</option> <option value="MÉDIO">MÉDIO</option> <option value="TECNICO">TECNICO</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <label class="flex items-start gap-2 cursor-pointer text-xs font-bold text-amber-950">
+                        <input type="checkbox" id="f01-chk-acolhido" required class="mt-0.5" onchange="toggleBotaoHabilitar('f01-chk-acolhido', 'btn-submeter-nova-solicitacao')">
+                        <span>CONFIRMO ENVIAR E-MAIL 01- ALUNO ACOLHIDO</span>
+                    </label>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalNovaSolicitacao()" class="px-4 py-2 border rounded-lg text-xs font-medium bg-gray-100 cursor-pointer">Cancelar</button>
+                    <button type="submit" id="btn-submeter-nova-solicitacao" disabled class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2 rounded-lg text-xs shadow cursor-pointer">Enviar para Desarquivamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-cadastro-usuario" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-900 text-white px-5 py-4 flex justify-between items-center"><h3 id="titulo-modal-usuario" class="font-bold text-sm">👥 Cadastrar/Editar Operador</h3><button onclick="fecharModalUsuario()" class="text-white font-bold cursor-pointer">✕</button></div>
+            <form onsubmit="salvarNovoUsuarioFormularioMaster(event)" class="p-5 space-y-4">
+                <input type="hidden" id="user-form-id">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome Completo</label>
+                    <input type="text" id="user-form-nome" required class="w-full p-2 border rounded-lg text-xs font-medium uppercase focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-mail Corporativo (Login)</label>
+                    <input type="email" id="user-form-email" required class="w-full p-2 border rounded-lg text-xs font-medium focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Senha (Provisória ou Atualizada)</label>
+                    <input type="text" id="user-form-senha" required class="w-full p-2 border rounded-lg text-xs font-mono focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">NTE Vinculado</label>
+                    <select id="user-form-nte" required class="w-full p-2 border rounded-lg text-xs font-medium bg-gray-50 focus:outline-none"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Perfil de Usuário</label>
+                    <select id="user-form-perfil" required class="w-full p-2 border rounded-lg text-xs font-medium bg-gray-50 focus:outline-none">
+                        <option value="Técnico">Técnico</option> <option value="Master">Master</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 border-t pt-3">
+                    <button type="button" onclick="fecharModalUsuario()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2 rounded-lg text-xs shadow cursor-pointer">Salvar Configurações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Relação Oficial e Inalterável dos 27 NTEs da SEC/BA
+        const LISTA_OFICIAL_27_NTES = [
+            "NTE-01 Irecê", "NTE-02 Bom Jesus da Lapa", "NTE-03 Seabra", "NTE-04 Serrinha", "NTE-05 Itabuna",
+            "NTE-06 Valença", "NTE-07 Teixeira de Freitas", "NTE-08 Itapetinga", "NTE-09 Amargosa", "NTE-10 Juazeiro",
+            "NTE-11 Barreiras", "NTE-12 Macaúbas", "NTE-13 Caetité", "NTE-14 Itaberaba", "NTE-15 Ipirá",
+            "NTE-16 Jacobina", "NTE-17 Ribeira do Pombal", "NTE-18 Alagoinhas", "NTE-19 Feira de Santana", "NTE-20 Vitória da Conquista",
+            "NTE-21 Santo Antônio de Jesus", "NTE-22 Jequié", "NTE-23 Santa Maria da Vitória", "NTE-24 Paulo Afonso", "NTE-25 Senhor do Bonfim",
+            "NTE-26 Salvador", "NTE-27 Eunápolis"
+        ];
+
+        let usuariosDB = [
+            { id: 1, nome: "ELMO LOBÃO", email: "elmo.lobao@enova.educacao.ba.gov.br", senha: "123", perfil: "Master", nte: "NTE-26 Salvador", ativo: true },
+            { id: 2, nome: "ANA COSTA", email: "ana.costa@enova.educacao.ba.gov.br", senha: "123", perfil: "Técnico", nte: "NTE-26 Salvador", ativo: true },
+            { id: 3, nome: "CARLOS SOUZA", email: "carlos.souza@enova.educacao.ba.gov.br", senha: "123", perfil: "Técnico", nte: "NTE-19 Feira de Santana", ativo: true }
+        ];
+
+        let escolasDB = [
+            { id: 1, cod_mec: "290001", nome: "COLÉGIO ESTADUAL DA BAHIA (EXTINTO)", municipio: "SALVADOR", nte: "NTE-26 Salvador", dependencia: "Estadual", situacao: "Extinta", acervo: "Recolhido", local_acervo: "Acervo do NTE" },
+            { id: 2, cod_mec: "290002", nome: "ESCOLA NORMAL DE FEIRA DE SANTANA", municipio: "FEIRA DE SANTANA", nte: "NTE-19 Feira de Santana", dependencia: "Estadual", situacao: "Extinta", acervo: "Recolhido", local_acervo: "Acervo do NTE" }
+        ];
+
+        // Controle Dinâmico das Datas das Etapas para a Contabilização Unificada de Prazos
+        let processosDB = [
+            { id: 101, aluno: "AUGUSTO SILVA SANTOS", escola: "COLÉGIO ESTADUAL DA BAHIA (EXTINTO)", documento: "HISTÓRICO", etapa: "Desarquivamento", data_etapa_atual: "01/06/2026", nte: "NTE-26 Salvador", municipio: "SALVADOR" }
+        ];
+
+        const ETAPAS_FLUXO_OFICIAL = ["Desarquivamento", "Análise", "Pendência", "Digitação", "Conferência", "Assinatura", "Aguardando Retirada", "Retirado"];
+        let logsDB = [];
+        let usuarioLogado = null;
+        let paginaEscolaAtual = 1;
+        const totalPorPaginaEscola = 8;
+        let etapaFiltroAtual = 'TODOS';
+
+        // Inicialização dos NTEs nos Selects do Sistema
+        function inicializarSelectsNteEcosystem() {
+            const selects = ['user-form-nte'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) {
+                    el.innerHTML = "";
+                    LISTA_OFICIAL_27_NTES.forEach(nte => {
+                        el.innerHTML += `<option value="${nte}">${nte}</option>`;
+                    });
+                }
+            });
+        }
+
+        window.onload = function() {
+            inicializarSelectsNteEcosystem();
+        };
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const senha = document.getElementById('login-senha').value;
+            const u = usuariosDB.find(user => user.email.toLowerCase() === email.toLowerCase() && user.senha === senha && user.ativo);
+            
+            if (u) {
+                usuarioLogado = u;
+                document.getElementById('tela-login').classList.add('hidden');
+                document.getElementById('sistema-dashboard').classList.remove('hidden');
+                document.getElementById('user-nome').innerText = u.nome;
+                document.getElementById('user-perfil').innerText = `${u.perfil} | ${u.nte}`;
+                
+                const btnImportar = document.getElementById('btn-importar-dados-master');
+                if (u.perfil === "Master") {
+                    if(btnImportar) btnImportar.classList.remove('hidden');
+                    document.getElementById('menu-usuarios').classList.remove('hidden');
+                    document.getElementById('menu-logs').classList.remove('hidden');
+                } else {
+                    if(btnImportar) btnImportar.classList.add('hidden');
+                    document.getElementById('menu-usuarios').classList.add('hidden');
+                    document.getElementById('menu-logs').classList.add('hidden');
+                }
+                
+                registrarLog("Acesso realizado ao painel operacional.");
+                navegar('painel');
+            } else {
+                alert("Credenciais inválidas, ou operador desativado no escopo regional.");
+            }
+        }
+
+        function registrarLog(acao) {
+            if(!usuarioLogado) return;
+            logsDB.unshift({ data: new Date().toLocaleString('pt-BR'), nome: usuarioLogado.nome, email: usuarioLogado.email, acao: acao });
+        }
+
+        function navegar(aba) {
+            document.getElementById('aba-painel').classList.add('hidden');
+            document.getElementById('aba-escolas').classList.add('hidden');
+            document.getElementById('aba-processos').classList.add('hidden');
+            document.getElementById('aba-usuarios').classList.add('hidden');
+            document.getElementById('aba-logs').classList.add('hidden');
+            
+            if (aba === 'painel') { document.getElementById('aba-painel').classList.remove('hidden'); carregarDadosDashboardReal(); } 
+            if (aba === 'escolas') { document.getElementById('aba-escolas').classList.remove('hidden'); renderizarListaEscolasBufferMemoria(); } 
+            if (aba === 'processos') { document.getElementById('aba-processos').classList.remove('hidden'); carregarEContarProcessosHorizontais(); }
+            if (aba === 'usuarios') { document.getElementById('aba-usuarios').classList.remove('hidden'); carregarListaUsuarios(); }
+            if (aba === 'logs') { document.getElementById('aba-logs').classList.remove('hidden'); carregarLogs(); }
+        }
+
+        function carregarDadosDashboardReal() {
+            let escolasVisiveis = (usuarioLogado.perfil === "Master") ? escolasDB : escolasDB.filter(e => e.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+            let procVisiveis = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+
+            document.getElementById('dash-escolas').innerText = escolasVisiveis.length;
+            document.getElementById('dash-acervos').innerText = escolasVisiveis.filter(e => e.acervo === "Recolhido").length;
+            document.getElementById('dash-estaduais').innerText = escolasVisiveis.filter(e => e.dependencia === "Estadual").length;
+            document.getElementById('dash-municipios').innerText = [...new Set(escolasVisiveis.map(e => e.municipio))].length;
+            document.getElementById('dash-usuarios').innerText = usuariosDB.length;
+
+            document.getElementById('dash-proc-desarquivamento').innerText = procVisiveis.filter(p => p.etapa === "Desarquivamento").length;
+            document.getElementById('dash-proc-analise').innerText = procVisiveis.filter(p => p.etapa === "Análise").length;
+            document.getElementById('dash-proc-pendencia').innerText = procVisiveis.filter(p => p.etapa === "Pendência").length;
+            document.getElementById('dash-proc-digitacao').innerText = procVisiveis.filter(p => p.etapa === "Digitação").length;
+            document.getElementById('dash-proc-conferencia').innerText = procVisiveis.filter(p => p.etapa === "Conferência").length;
+            document.getElementById('dash-proc-assinatura').innerText = procVisiveis.filter(p => p.etapa === "Assinatura").length;
+            document.getElementById('dash-proc-aguardando').innerText = procVisiveis.filter(p => p.etapa === "Aguardando Retirada").length;
+            document.getElementById('dash-proc-retirado').innerText = procVisiveis.filter(p => p.etapa === "Retirado").length;
+        }
+
+        function toggleBotaoHabilitar(chkId, btnId) {
+            const chk = document.getElementById(chkId); const btn = document.getElementById(btnId);
+            if(chk && btn) btn.disabled = !chk.checked;
+        }
+
+        function preencherSelectTecnicosPorNte(selectId, nteFiltro) {
+            const select = document.getElementById(selectId); if(!select) return;
+            select.innerHTML = '<option value="">-- Selecione o Servidor --</option>';
+            usuariosDB.filter(u => u.nte.toUpperCase().replace(/\s/g,'') === nteFiltro.toUpperCase().replace(/\s/g,'')).forEach(u => {
+                select.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
+            });
+        }
+
+        function obterDataAtualFormatada() {
+            const hoje = new Date();
+            return String(hoje.getDate()).padStart(2, '0') + '/' + String(hoje.getMonth() + 1).padStart(2, '0') + '/' + hoje.getFullYear();
+        }
+
+        function calcularDiasApartirDeDataString(dataString) {
+            if(!dataString) return 0;
+            try {
+                const partes = dataString.split("/");
+                const dataInicio = new Date(partes[2], partes[1] - 1, partes[0]);
+                const dataHoje = new Date();
+                const diferencaTempo = dataHoje.getTime() - dataInicio.getTime();
+                return Math.max(0, Math.floor(diferencaTempo / (1000 * 3600 * 24)));
+            } catch(e) { return 0; }
+        }
+
+        // =========================================================================
+        // 📁 CONTROLADOR DE FLUXOS REGIONAIS E TRAVAMENTO DE DATAS
+        // =========================================================================
+        function carregarEContarProcessosHorizontais() {
+            let visiveis = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+            
+            document.getElementById('count-horiz-todos').innerText = visiveis.length;
+            document.getElementById('count-horiz-desarquivamento').innerText = visiveis.filter(p => p.etapa === "Desarquivamento").length;
+            document.getElementById('count-horiz-analise').innerText = visiveis.filter(p => p.etapa === "Análise").length;
+            document.getElementById('count-horiz-pendencia').innerText = visiveis.filter(p => p.etapa === "Pendência").length;
+            document.getElementById('count-horiz-digitacao').innerText = visiveis.filter(p => p.etapa === "Digitação").length;
+            document.getElementById('count-horiz-conferencia').innerText = visiveis.filter(p => p.etapa === "Conferência").length;
+            document.getElementById('count-horiz-assinatura').innerText = visiveis.filter(p => p.etapa === "Assinatura").length;
+            document.getElementById('count-horiz-aguardando').innerText = visiveis.filter(p => p.etapa === "Aguardando Retirada").length;
+            document.getElementById('count-horiz-retirado').innerText = visiveis.filter(p => p.etapa === "Retirado").length;
+            
+            renderizarProcessosFlutuantes();
+        }
+
+        function filtrarProcessosPorEtapa(etapa) { etapaFiltroAtual = etapa; renderizarProcessosFlutuantes(); }
+
+        function renderizarProcessosFlutuantes() {
+            const corpo = document.getElementById('tabela-processos-corpo'); if(!corpo) return; corpo.innerHTML = "";
+            
+            let filtrados = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+            if (etapaFiltroAtual !== 'TODOS') filtrados = filtrados.filter(p => p.etapa === etapaFiltroAtual);
+
+            const busca = document.getElementById('busca-proc-nome').value.toLowerCase();
+            if (busca) filtrados = filtrados.filter(p => p.aluno.toLowerCase().includes(busca));
+
+            filtrados.forEach(p => {
+                let diasContados = calcularDiasApartirDeDataString(p.data_etapa_atual);
+                let botaoFluxoContextual = "";
+                let badgeAlertaPrazo = "";
+
+                // Regras e Alertas de Prazos Condicionais da Etapa de Desarquivamento
+                if (p.etapa === "Desarquivamento") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoDesarquivamento(${p.id})" class="bg-gray-800 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">📥 Avançar Etapa</button>`;
+                    
+                    if (diasContados >= 44) {
+                        badgeAlertaPrazo = `<span class="block bg-red-600 text-white text-[8px] font-extrabold px-1 py-0.5 rounded uppercase mt-0.5 animate-pulse">⚠️ CONFIRMAR DADOS DA BUSCA</span>`;
+                    } else if (diasContados >= 37) {
+                        badgeAlertaPrazo = `<span class="block bg-orange-500 text-white text-[8px] font-extrabold px-1 py-0.5 rounded uppercase mt-0.5">⚠️ REITERAÇÃO COM URGÊNCIA</span>`;
+                    } else if (diasContados >= 31) {
+                        badgeAlertaPrazo = `<span class="block bg-amber-500 text-gray-900 text-[8px] font-extrabold px-1 py-0.5 rounded uppercase mt-0.5">⚠️ REITERAÇÃO</span>`;
+                    }
+                } else if (p.etapa === "Análise") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoAnalise(${p.id})" class="bg-blue-800 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">🖥️ Mudar Etapa</button>`;
+                } else if (p.etapa === "Pendência") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoPendencia(${p.id})" class="bg-red-600 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">⚠️ Tratar Pend</button>`;
+                } else if (p.etapa === "Digitação") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoDigitacao(${p.id})" class="bg-indigo-600 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">💻 Mudar Etapa</button>`;
+                } else if (p.etapa === "Conferência") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoConferencia(${p.id})" class="bg-orange-600 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">🧐 Mudar Etapa</button>`;
+                } else if (p.etapa === "Assinatura") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoAssinatura(${p.id})" class="bg-emerald-600 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">📜 Deferido</button>`;
+                } else if (p.etapa === "Aguardando Retirada") {
+                    botaoFluxoContextual = `<button onclick="abrirModalFluxoAguardando(${p.id})" class="bg-gray-700 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">🎁 Entregue</button>`;
+                } else {
+                    botaoFluxoContextual = `<span class="text-gray-400 italic font-bold">Retirado</span>`;
+                }
+
+                let areaControlesMasterOuComum = "";
+                if (usuarioLogado.perfil === "Master") {
+                    let opcoesEtapasSelect = ETAPAS_FLUXO_OFICIAL.map(etp => 
+                        `<option value="${etp}" ${p.etapa === etp ? 'selected' : ''}>Forçar: ${etp}</option>`
+                    ).join("");
+
+                    areaControlesMasterOuComum = `
+                        <div class="flex flex-col gap-1 border-l pl-2 border-gray-200">
+                            <select onchange="alterarEtapaDiretoMaster(${p.id}, this.value)" class="p-1 bg-purple-50 text-purple-950 font-bold border border-purple-200 rounded text-[9px] focus:outline-none">
+                                ${opcoesEtapasSelect}
+                            </select>
+                        </div>
+                    `;
+                }
+
+                corpo.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2.5 font-bold text-gray-900 truncate">
+                            <span class="block uppercase tracking-wide truncate">${p.aluno}</span>
+                            <span class="text-[10px] text-blue-800 font-extrabold bg-blue-50 px-1 py-0.2 rounded">${p.documento}</span>
+                        </td>
+                        <td class="p-2.5 text-gray-600 truncate">
+                            <span class="block font-bold truncate text-[10px]">${p.escola}</span>
+                            <span class="text-[9px] text-gray-400 block font-semibold uppercase truncate">${p.nte}</span>
+                        </td>
+                        <td class="p-2.5 text-center">
+                            <span class="px-1.5 py-0.5 bg-amber-100 text-amber-950 font-black rounded text-[9px] uppercase tracking-tight block">${p.etapa}</span>
+                            ${badgeAlertaPrazo}
+                        </td>
+                        <td class="p-2.5 text-center font-bold text-gray-700">
+                            <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded border">${diasContados} dias</span>
+                            <span class="block text-[8px] text-gray-400 font-normal mt-1">Desde: ${p.data_etapa_atual}</span>
+                        </td>
+                        <td class="p-2.5">
+                            <div class="flex items-center justify-center gap-1.5">
+                                ${botaoFluxoContextual}
+                                ${areaControlesMasterOuComum}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function fecharModalFluxo(fase) { document.getElementById(`modal-fluxo-${fase}`).classList.add('hidden'); }
+
+        function abrirModalFluxoDesarquivamento(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f00-id').value = p.id;
+                document.getElementById('f00-tipo').value = "";
+                document.getElementById('f00-local').value = "";
+                document.getElementById('f00-prioridade').value = "";
+                document.getElementById('f00-chk-email').checked = false;
+                document.getElementById('f00-submit').disabled = true;
+                preencherSelectTecnicosPorNte('f00-analista', p.nte);
+
+                // Geração Dinâmica de Checkboxes de Notificações Baseado nos Prazos de Desarquivamento
+                let dias = calcularDiasApartirDeDataString(p.data_etapa_atual);
+                let containerAlertas = document.getElementById('f00-container-alertas');
+                containerAlertas.innerHTML = "";
+                containerAlertas.classList.add('hidden');
+
+                if(dias >= 44) {
+                    containerAlertas.classList.remove('hidden');
+                    containerAlertas.innerHTML = `
+                        <div class="bg-red-50 p-2.5 border border-red-200 rounded-lg text-xs font-bold text-red-900">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" required class="mt-0.5">
+                                <span>ENVIAR E-MAIL: CONFIRMAR DADOS DA BUSCA (Obrigatório)</span>
+                            </label>
+                        </div>`;
+                } else if(dias >= 37) {
+                    containerAlertas.classList.remove('hidden');
+                    containerAlertas.innerHTML = `
+                        <div class="bg-orange-50 p-2.5 border border-orange-200 rounded-lg text-xs font-bold text-orange-950">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" required class="mt-0.5">
+                                <span>ENVIAR E-MAIL 44- Reiterar (Aluno URGENTE) (Obrigatório)</span>
+                            </label>
+                        </div>`;
+                } else if(dias >= 31) {
+                    containerAlertas.classList.remove('hidden');
+                    containerAlertas.innerHTML = `
+                        <div class="bg-amber-50 p-2.5 border border-amber-200 rounded-lg text-xs font-bold text-amber-950">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" required class="mt-0.5">
+                                <span>ENVIAR E-MAIL: 43- Reiterar (Aluno NORMAL) (Obrigatório)</span>
+                            </label>
+                        </div>`;
+                }
+
+                document.getElementById('modal-fluxo-desarquivamento').classList.remove('hidden');
+            }
+        }
+
+        function executarTransicaoDesarquivamento(event) {
+            event.preventDefault();
+            let id = document.getElementById('f00-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) { 
+                p.etapa = "Análise"; 
+                p.data_etapa_atual = obterDataAtualFormatada(); // Trava a nova data da fase
+                registrarLog(`Processo [${p.aluno}]: Triado para Análise. Data resetada.`); 
+                fecharModalFluxo('desarquivamento'); carregarEContarProcessosHorizontais(); 
+            }
+        }
+
+        function abrirModalFluxoAnalise(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f01-id').value = p.id;
+                document.getElementById('f01-pendencia').value = "não";
+                document.getElementById('f01-p-aluno').checked = false;
+                document.getElementById('f01-p-inst').checked = false;
+                document.getElementById('f01-txt-detalhe').value = "";
+                document.getElementById('f01-chk-email').checked = false;
+                preencherSelectTecnicosPorNte('f01-digitador', p.nte);
+                onChangePendenciaAnalise();
+                document.getElementById('modal-fluxo-analise').classList.remove('hidden');
+            }
+        }
+
+        function onChangePendenciaAnalise() {
+            const ehPendencia = document.getElementById('f01-pendencia').value === "sim";
+            if (ehPendencia) {
+                document.getElementById('box-pendencia-analise').classList.remove('hidden');
+                document.getElementById('box-fluxo-normal-analise').classList.add('hidden');
+                onChangeTipoPendenciaAnalise();
+            } else {
+                document.getElementById('box-pendencia-analise').classList.add('hidden');
+                document.getElementById('box-fluxo-normal-analise').classList.remove('hidden');
+                document.getElementById('f01-submit').innerText = "Mudar Etapa e Atualizar Data";
+                document.getElementById('f01-submit').disabled = true;
+            }
+        }
+
+        function onChangeTipoPendenciaAnalise() {
+            const pAluno = document.getElementById('f01-p-aluno').checked;
+            const pInst = document.getElementById('f01-p-inst').checked;
+            const msgBox = document.getElementById('msg-email-pendencia');
+            const btn = document.getElementById('f01-submit');
+            btn.innerText = "Enviar para Pendência"; btn.disabled = false;
+
+            if (pAluno && pInst) msgBox.innerText = "📧 ENVIAR E-MAIL 09 - Aluno Pendência (INSTITUIÇÃO e REQUERENTE)";
+            else if (pInst) msgBox.innerText = "📧 ENVIAR E-MAIL: 08 - Aluno Pendência (INSTITUIÇÃO)";
+            else if (pAluno) msgBox.innerText = "📧 ENVIAR E-MAIL: 07-Aluno Pendência (Aluno)";
+            else { msgBox.innerText = "⚠️ Selecione pelo menos uma variação."; btn.disabled = true; }
+        }
+
+        function atualizarBotaoSubmissaoAnalise() {
+            const chk = document.getElementById('f01-chk-email').checked;
+            const dig = document.getElementById('f01-digitador').value;
+            document.getElementById('f01-submit').disabled = !(chk && dig !== "");
+        }
+
+        function executarTransicaoAnalise(event) {
+            event.preventDefault();
+            let id = document.getElementById('f01-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                const ehPendencia = document.getElementById('f01-pendencia').value === "sim";
+                p.etapa = ehPendencia ? "Pendência" : "Digitação";
+                p.data_etapa_atual = obterDataAtualFormatada();
+                registrarLog(`Processo [${p.aluno}]: Direcionado para ${p.etapa}.`);
+                fecharModalFluxo('analise'); carregarEContarProcessosHorizontais();
+            }
+        }
+
+        function abrirModalFluxoPendencia(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f02-id').value = p.id;
+                document.getElementById('f02-recebimento').value = "total";
+                document.getElementById('f02-txt-pendente').value = "";
+                document.getElementById('f02-chk-email').checked = false;
+                document.getElementById('f02-submit').disabled = true;
+                preencherSelectTecnicosPorNte('f02-digitador', p.nte);
+                onChangeRecebimentoPendencia();
+                document.getElementById('modal-fluxo-pendencia').classList.remove('hidden');
+            }
+        }
+
+        function onChangeRecebimentoPendencia() {
+            const tipo = document.getElementById('f02-recebimento').value;
+            if(tipo === "total") {
+                document.getElementById('box-total-pendencia').classList.remove('hidden');
+                document.getElementById('box-parcial-pendencia').classList.add('hidden');
+            } else {
+                document.getElementById('box-total-pendencia').classList.add('hidden');
+                document.getElementById('box-parcial-pendencia').classList.remove('hidden');
+            }
+            document.getElementById('f02-chk-email').checked = false; document.getElementById('f02-submit').disabled = true;
+        }
+
+        function executarTransicaoPendencia(event) {
+            event.preventDefault();
+            let id = document.getElementById('f02-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                p.etapa = "Digitação";
+                p.data_etapa_atual = obterDataAtualFormatada();
+                fecharModalFluxo('pendencia'); carregarEContarProcessosHorizontais();
+            }
+        }
+
+        function abrirModalFluxoDigitacao(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f05-id').value = p.id;
+                document.getElementById('f05-chk-email').checked = false;
+                document.getElementById('f05-submit').disabled = true;
+                preencherSelectTecnicosPorNte('f05-conferente', p.nte);
+                document.getElementById('modal-fluxo-digitacao').classList.remove('hidden');
+            }
+        }
+
+        function executarTransicaoDigitacao(event) {
+            event.preventDefault();
+            let id = document.getElementById('f05-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) { p.etapa = "Conferência"; p.data_etapa_atual = obterDataAtualFormatada(); fecharModalFluxo('digitacao'); carregarEContarProcessosHorizontais(); }
+        }
+
+        function abrirModalFluxoConferencia(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f06-id').value = p.id;
+                document.getElementById('f06-chk-email').checked = false;
+                document.getElementById('f06-submit').disabled = true;
+                document.getElementById('modal-fluxo-conferencia').classList.remove('hidden');
+            }
+        }
+
+        function executarTransicaoConferencia(event) {
+            event.preventDefault();
+            let id = document.getElementById('f06-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) { p.etapa = "Assinatura"; p.data_etapa_atual = obterDataAtualFormatada(); fecharModalFluxo('conferencia'); carregarEContarProcessosHorizontais(); }
+        }
+
+        function abrirModalFluxoAssinatura(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f07-id').value = p.id;
+                document.getElementById('f07-chk-email').checked = false;
+                document.getElementById('f07-submit').disabled = true;
+                document.getElementById('modal-fluxo-assinatura').classList.remove('hidden');
+            }
+        }
+
+        function executarTransicaoAssinatura(event) {
+            event.preventDefault();
+            let id = document.getElementById('f07-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) { p.etapa = "Aguardando Retirada"; p.data_etapa_atual = obterDataAtualFormatada(); fecharModalFluxo('assinatura'); carregarEContarProcessosHorizontais(); }
+        }
+
+        function abrirModalFluxoAguardando(id) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                document.getElementById('f08-id').value = p.id;
+                document.getElementById('f08-retirada').value = "solicitante";
+                onChangeFormaRetirada();
+                document.getElementById('modal-fluxo-aguardando').classList.remove('hidden');
+            }
+        }
+
+        function onChangeFormaRetirada() {
+            const forma = document.getElementById('f08-retirada').value;
+            document.getElementById('box-terceiros-retirada').classList.toggle('hidden', forma !== "terceiros");
+        }
+
+        function executarTransicaoAguardando(event) {
+            event.preventDefault();
+            let id = document.getElementById('f08-id').value;
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) { p.etapa = "Retirado"; p.data_etapa_atual = obterDataAtualFormatada(); fecharModalFluxo('aguardando'); carregarEContarProcessosHorizontais(); }
+        }
+
+        function abrirFormularioNovaSolicitacao() {
+            const selectEscola = document.getElementById('novo-proc-escola'); if(!selectEscola) return; selectEscola.innerHTML = "";
+            let filtradas = (usuarioLogado.perfil === "Master") ? escolasDB : escolasDB.filter(e => e.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+            
+            if(filtradas.length === 0) { alert("Nenhuma escola catalogada para o seu NTE de origem."); return; }
+            filtradas.forEach(e => { selectEscola.innerHTML += `<option value="${e.nome}">${e.nome}</option>`; });
+
+            document.getElementById('novo-proc-aluno').value = "";
+            document.getElementById('f01-chk-acolhido').checked = false;
+            document.getElementById('btn-submeter-nova-solicitacao').disabled = true;
+            handleSelecaoInstituicaoFluxoAutomatico();
+            document.getElementById('modal-nova-solicitacao').classList.remove('hidden');
+        }
+
+        function handleSelecaoInstituicaoFluxoAutomatico() {
+            const instNome = document.getElementById('novo-proc-escola').value;
+            const esc = escolasDB.find(e => e.nome === instNome);
+            if(esc) {
+                document.getElementById('novo-autofill-mec').value = esc.cod_mec || "";
+                document.getElementById('novo-autofill-nte').value = esc.nte || "";
+                document.getElementById('novo-autofill-municipio').value = esc.municipio || "";
+                document.getElementById('novo-autofill-dep').value = esc.dependencia || "";
+                document.getElementById('novo-autofill-situacao').value = esc.situacao || "";
+                document.getElementById('novo-autofill-acervo').value = esc.acervo || "";
+                document.getElementById('novo-autofill-local-acervo').value = esc.local_acervo || "";
+            }
+        }
+
+        function fecharModalNovaSolicitacao() { document.getElementById('modal-nova-solicitacao').classList.add('hidden'); }
+
+        function salvarNovaSolicitacao(event) {
+            event.preventDefault();
+            const nomeAluno = document.getElementById('novo-proc-aluno').value.toUpperCase().trim();
+            const escolaNome = document.getElementById('novo-proc-escola').value;
+            const docTipo = document.getElementById('novo-proc-documento').value;
+            const mun = document.getElementById('novo-autofill-municipio').value;
+            const nteVinculo = document.getElementById('novo-autofill-nte').value;
+            const dataHoje = obterDataAtualFormatada();
+
+            const novoId = processosDB.length > 0 ? Math.max(...processosDB.map(p => p.id)) + 1 : 101;
+            processosDB.push({
+                id: novoId, aluno: nomeAluno, escola: escolaNome, documento: docTipo,
+                etapa: "Desarquivamento", data_etapa_atual: dataHoje, nte: nteVinculo, municipio: mun
+            });
+
+            registrarLog(`Nova solicitação cadastrada para ${nomeAluno}. Data de Início: ${dataHoje}`);
+            fecharModalNovaSolicitacao(); carregarEContarProcessosHorizontais();
+        }
+
+        function alterarEtapaDiretoMaster(id, novaEtapa) {
+            let p = processosDB.find(proc => proc.id == id);
+            if(p) {
+                p.etapa = novaEtapa;
+                p.data_etapa_atual = obterDataAtualFormatada(); // Trava a data ao forçar etapa
+                registrarLog(`[MASTER] Alterou a etapa do processo ID ${p.id} para ${novaEtapa}.`);
+                carregarEContarProcessosHorizontais();
+            }
+        }
+
+        // =========================================================================
+        // 📥 MOTOR DE IMPORTAÇÃO EXCEL OTIMIZADO
+        // =========================================================================
+        function processarImportacaoOtimizada(event) {
+            const arquivo = event.target.files[0]; if(!arquivo) return;
+            const leitor = new FileReader();
+            leitor.onload = function(e) {
+                const dadosBinarios = e.target.result;
+                const livroExcel = XLSX.read(dadosBinarios, { type: 'binary' });
+                const nomeAba = livroExcel.SheetNames[0];
+                const linhasJson = XLSX.utils.sheet_to_json(livroExcel.Sheets[nomeAba]);
+
+                document.getElementById('card-progresso-importacao').classList.remove('hidden');
+                let totalInseridos = 0, indexCorrente = 0;
+                const loteTamanho = 200;
+
+                function processarLote() {
+                    const limiteFim = Math.min(indexCorrente + loteTamanho, linhasJson.length);
+                    for(let i = indexCorrente; i < limiteFim; i++) {
+                        let linha = linhasJson[i];
+                        let chaves = Object.keys(linha);
+                        let obterValor = (variacoes) => {
+                            let f = chaves.find(k => variacoes.includes(k.trim().toUpperCase()));
+                            return f ? String(linha[f]).trim() : "";
+                        };
+
+                        let mec = obterValor(["CÓDIGO MEC", "COD MEC", "MEC"]);
+                        let nome = obterValor(["NOME DA ESCOLA", "NOME", "INSTITUIÇÃO"]).toUpperCase();
+                        let mun = obterValor(["MUNICÍPIO", "MUNICIPIO"]).toUpperCase();
+                        let nte = obterValor(["NTE", "NTE VINCULADO"]);
+                        let dep = obterValor(["DEPENDÊNCIA ADMINISTRATIVA", "DEPENDENCIA", "DEP. ADMINISTRATIVO"]);
+                        let sit = obterValor(["SITUAÇÃO", "SITUACAO"]);
+                        let acv = obterValor(["ACERVO"]);
+                        let locAcv = obterValor(["LOCAL DO ACERVO", "LOCAL"]);
+
+                        if(!nte) nte = "NTE-26 Salvador";
+                        if(!dep) dep = "Estadual";
+                        if(!sit) sit = "Extinta";
+                        if(!acv) acv = "Recolhido";
+                        if(!locAcv) locAcv = "Acervo do NTE";
+
+                        if(!mec || !nome || !mun) continue;
+
+                        if(!escolasDB.some(esc => String(esc.cod_mec) === mec)) {
+                            escolasDB.push({
+                                id: escolasDB.length + 1, cod_mec: mec, nome: nome, municipio: mun,
+                                nte: nte, dependencia: dep, situacao: sit, acervo: acv, local_acervo: locAcv
+                            });
+                            totalInseridos++;
+                        }
+                    }
+                    indexCorrente = limiteFim;
+                    let pct = Math.round((indexCorrente / linhasJson.length) * 100);
+                    document.getElementById('barra-progresso-importacao').style.width = pct + "%";
+                    document.getElementById('percentual-importacao-texto').innerText = pct + "%";
+
+                    if(indexCorrente < linhasJson.length) setTimeout(processarLote, 5);
+                    else {
+                        document.getElementById('card-progresso-importacao').classList.add('hidden');
+                        alert(`Carga realizada com sucesso! Inseridos: ${totalInseridos}`);
+                        renderListaEscolasBufferMemoria();
+                    }
+                }
+                processarLote();
+            };
+            leitor.readAsBinaryString(arquivo);
+        }
+
+        // =========================================================================
+        // 🏢 GERENCIAMENTO DE ESCOLAS
+        // =========================================================================
+        function abrirModalNovaEscola() {
+            document.getElementById('escola-form-id').value = "";
+            document.getElementById('modal-cadastro-escola').classList.remove('hidden');
+        }
+
+        function fecharModalEscola() { document.getElementById('modal-cadastro-escola').classList.add('hidden'); }
+
+        function renderizarListaEscolasBufferMemoria() {
+            const corpo = document.getElementById('tabela-escolas-corpo'); if(!corpo) return; corpo.innerHTML = "";
+            let filtradas = (usuarioLogado.perfil === "Master") ? escolasDB : escolasDB.filter(e => e.nte.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte.toUpperCase().replace(/\s/g,''));
+
+            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtradas.length} registros`;
+            let inicio = (paginaEscolaAtual - 1) * totalPorPaginaEscola;
+            let paginasTotais = Math.ceil(filtradas.length / totalPorPaginaEscola);
+            let paginadas = filtradas.slice(inicio, inicio + totalPorPaginaEscola);
+
+            paginadas.forEach(e => {
+                corpo.innerHTML += `
+                    <tr class="hover:bg-gray-50 text-[11px]">
+                        <td class="p-3 font-mono font-bold">${e.cod_mec}</td>
+                        <td class="p-3 font-bold text-blue-950 uppercase">${e.nome}</td>
+                        <td class="p-3 uppercase font-medium">${e.municipio}</td>
+                        <td class="p-3 font-semibold text-gray-500">${e.nte}<br><span class="text-[9px] bg-gray-100 font-bold px-1 rounded">${e.dependencia}</span></td>
+                        <td class="p-3"><span class="px-1.5 py-0.5 font-bold rounded text-[10px] bg-red-100 text-red-800">${e.situacao}</span></td>
+                        <td class="p-3 font-bold text-gray-700">${e.acervo}</td>
+                        <td class="p-3 text-center"><button class="text-blue-900 font-bold">Alterar</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function mudarPaginaEscola(dir) { paginaEscolaAtual += dir; renderizarListaEscolasBufferMemoria(); }
+
+        // =========================================================================
+        // 👥 CONTROLE EXPANDIDO DE USUÁRIOS E SENHAS (EXCLUSIVO MASTER)
+        // =========================================================================
+        function carregarListaUsuarios() {
+            const corpo = document.getElementById('tabela-usuarios-corpo'); if(!corpo) return; corpo.innerHTML = "";
+            usuariosDB.forEach(u => {
+                let botoesMaster = `<span class="text-xs text-gray-400 italic">Sem permissão</span>`;
+                if (usuarioLogado && usuarioLogado.perfil === 'Master') {
+                    botoesMaster = `
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="abrirModalEditarUsuarioMaster(${u.id})" class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">Editar</button>
+                            <button onclick="toggleStatusUsuarioMaster(${u.id})" class="${u.ativo ? 'bg-red-600' : 'bg-emerald-600'} text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">
+                                ${u.ativo ? 'Desativar' : 'Ativar'}
+                            </button>
+                            <button onclick="resetarSenhaUsuarioMaster(${u.id})" class="bg-gray-700 text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">Resetar Senha</button>
+                        </div>
+                    `;
+                }
+                corpo.innerHTML += `
+                    <tr class="text-xs">
+                        <td class="p-3 font-bold">${u.nome}<br><span class="text-xs text-gray-400 font-normal font-mono">${u.email}</span></td>
+                        <td class="p-3 font-medium">${u.perfil}</td>
+                        <td class="p-3 font-semibold text-gray-600">${u.nte}</td>
+                        <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${u.ativo ? 'ATIVO' : 'INATIVO'}</span></td>
+                        <td class="p-3 text-center">${botoesMaster}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function abrirModalCriarUsuarioMaster() {
+            document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastrar Técnico";
+            document.getElementById('user-form-id').value = "";
+            document.getElementById('user-form-nome').value = "";
+            document.getElementById('user-form-email').value = "";
+            document.getElementById('user-form-senha').value = "SECBA2026";
+            inicializarSelectsNteEcosystem();
+            document.getElementById('modal-cadastro-usuario').classList.remove('hidden');
+        }
+
+        function abrirModalEditarUsuarioMaster(id) {
+            let u = usuariosDB.find(user => user.id == id);
+            if(u) {
+                document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Informações do Técnico";
+                document.getElementById('user-form-id').value = u.id;
+                document.getElementById('user-form-nome').value = u.nome;
+                document.getElementById('user-form-email').value = u.email;
+                document.getElementById('user-form-senha').value = u.senha;
+                inicializarSelectsNteEcosystem();
+                document.getElementById('user-form-nte').value = u.nte;
+                document.getElementById('user-form-perfil').value = u.perfil;
+                document.getElementById('modal-cadastro-usuario').classList.remove('hidden');
+            }
+        }
+
+        function fecharModalUsuario() { document.getElementById('modal-cadastro-usuario').classList.add('hidden'); }
+
+        function salvarNovoUsuarioFormularioMaster(event) {
+            event.preventDefault();
+            const id = document.getElementById('user-form-id').value;
+            const nome = document.getElementById('user-form-nome').value.toUpperCase().trim();
+            const email = document.getElementById('user-form-email').value.trim();
+            const senha = document.getElementById('user-form-senha').value;
+            const nte = document.getElementById('user-form-nte').value;
+            const perfil = document.getElementById('user-form-perfil').value;
+
+            if(!id) {
+                if(usuariosDB.some(u => u.email.toLowerCase() === email.toLowerCase())) return alert("E-mail já cadastrado.");
+                usuariosDB.push({ id: usuariosDB.length + 1, nome: nome, email: email, senha: senha, perfil: perfil, nte: nte, ativo: true });
+            } else {
+                let u = usuariosDB.find(user => user.id == id);
+                if(u) { u.nome = nome; u.email = email; u.senha = senha; u.nte = nte; u.perfil = perfil; }
+            }
+            fecharModalUsuario(); carregarListaUsuarios();
+        }
+
+        function toggleStatusUsuarioMaster(id) {
+            let u = usuariosDB.find(user => user.id == id);
+            if (u) { u.ativo = !u.ativo; registrarLog(`Alterou status do operador: ${u.email}`); carregarListaUsuarios(); }
+        }
+
+        function resetarSenhaUsuarioMaster(id) {
+            let u = usuariosDB.find(user => user.id == id);
+            if (u) {
+                u.senha = "SECBA2026";
+                alert(`Senha do usuário ${u.nome} foi resetada para o padrão: SECBA2026`);
+                registrarLog(`Senha resetada para padrão do operador: ${u.email}`);
+                carregarListaUsuarios();
+            }
+        }
+
+        function carregarLogs() {
+            const corpo = document.getElementById('tabela-logs-corpo'); if(!corpo) return; corpo.innerHTML = "";
+            logsDB.forEach(l => {
+                corpo.innerHTML += `<tr><td class="p-4 text-xs font-semibold text-gray-500">${l.data}</td><td class="p-4 font-bold text-gray-800">${l.nome}</td><td class="p-4 text-xs font-mono">${l.email}</td><td class="p-4 font-bold text-blue-900">${l.acao}</td></tr>`;
+            });
+        }
+
+        function logout() { usuarioLogado = null; document.getElementById('sistema-dashboard').classList.add('hidden'); document.getElementById('tela-login').classList.remove('hidden'); }
+    </script>
+<script>
+        // CONFIGURAÇÕES DO SUPABASE (Deixe logo no início do bloco <script> principal)
+        const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co";
+        const SUPABASE_KEY = "SUA_CHAVE_ANON_PUBLIC_AQUI"; // Cole aqui a chave longa do seu painel
+        const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // ... todas as outras funções (handleLogin, navegar, etc) continuam aqui ...
+        
+    </script>
+</body>
+</html>
