@@ -573,6 +573,22 @@ function controlarModalUsuario(deveAbrir = false) {
     modal.classList.toggle('flex', deveAbrir);
 }
 
+// ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
+function controlarModalUsuario(deveAbrir = false) {
+    const modal = document.getElementById('modal-usuario');
+    if (!modal) return;
+
+    if (deveAbrir) {
+        document.getElementById('form-usuario').reset();
+        document.getElementById('user-id').value = "";
+        document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastro de Operador Regional";
+    }
+
+    // Alterna as classes do Tailwind de forma limpa usando toggle
+    modal.classList.toggle('hidden', !deveAbrir);
+    modal.classList.toggle('flex', deveAbrir);
+}
+
 // Atalhos para o HTML continuar funcionando sem mexer nos botões
 function abrirModalUsuario() { 
     controlarModalUsuario(true); 
@@ -582,20 +598,21 @@ function fecharModalUsuario() {
     controlarModalUsuario(false); 
 }
 
-        function editarUsuarioClick(id) {
-            const list = window.usuariosDB || [];
-            const u = list.find(item => item.id == id);
-            if(!u) return;
-            document.getElementById('user-id').value = u.id;
-            document.getElementById('user-nome-input').value = u.nome || '';
-            document.getElementById('user-email-input').value = u.email || '';
-            document.getElementById('user-senha-input').value = u.senha_hash || '';
-            document.getElementById('user-perfil-input').value = u.perfil || 'Tecnico';
-            document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
-            document.getElementById('modal-usuario').classList.remove('hidden');
-        }
+function editarUsuarioClick(id) {
+    const list = window.usuariosDB || [];
+    const u = list.find(item => item.id == id);
+    if (!u) return;
 
-        async function salvarUsuarioFormulario(event) {
+    document.getElementById('user-id').value = u.id;
+    document.getElementById('user-nome-input').value = u.nome || '';
+    document.getElementById('user-email-input').value = u.email || '';
+    document.getElementById('user-senha-input').value = u.senha_hash || '';
+    document.getElementById('user-perfil-input').value = u.perfil || 'Tecnico';
+    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
+    
+    // Alinhado com o novo padrão refatorado
+    controlarModalUsuario(true); 
+}        async function salvarUsuarioFormulario(event) {
             event.preventDefault();
             const id = document.getElementById('user-id').value;
             const payload = {
