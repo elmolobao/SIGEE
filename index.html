@@ -223,9 +223,9 @@
     </div>
 
     <script>
-        // CONFIGURAÇÕES DO SUPABASE
+        // CONFIGURAÇÕES DO SUPABASE (Declaradas apenas uma vez)
         const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co";
-        const SUPABASE_KEY = "SUA_CHAVE_ANON_KEY_AQUI"; // Substitua por sua anon key válida
+        const SUPABASE_KEY = "SUA_CHAVE_ANON_KEY_REAL_AQUI"; // Certifique-se de colar sua anon_key válida aqui
 
         const headers = {
             "apikey": SUPABASE_KEY,
@@ -247,8 +247,8 @@
             const email = document.getElementById('login-email').value.trim();
             const senha = document.getElementById('login-senha').value;
             
-            // Simulação de login baseado no buffer local carregado
-            const u = usuariosDB.find(user => user.email.toLowerCase() === email.toLowerCase() && user.ativo);
+            // Procura o usuário no buffer carregado pelo Supabase
+            const u = usuariosDB.find(user => user.email.toLowerCase() === email.toLowerCase() && user.senha === senha && user.ativo);
             
             if (u) {
                 usuarioLogado = u;
@@ -339,14 +339,10 @@
             try {
                 const resposta = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sigee?select=*`, { headers });
                 if(!resposta.ok) throw new Error("Erro de conexão");
-                usuariosDB = await resposta.getValues ? await resposta.getValues() : await resposta.json();
+                usuariosDB = await resposta.json();
                 
                 corpo.innerHTML = "";
                 usuariosDB.forEach(u => {
-                    const statusBadge = u.ativo ? 
-                        `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Ativo</span>` : 
-                        `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold">Inativo</span>`;
-                    
                     corpo.innerHTML += `
                         <tr class="hover:bg-gray-50 transition">
                             <td class="p-4 font-mono font-bold text-gray-500">${u.id}</td>
@@ -368,11 +364,12 @@
 
         function abrirModalNovoUsuarioMaster() {
             document.getElementById('titulo-modal-usuario').innerText = "👤 Cadastrar Novo Técnico / Gestor";
-            document.getElementById('cad-id').value = "";
-            document.getElementById('cad-nome').value = "";
-            document.getElementById('cad-email').value = "";
-            document.getElementById('cad-perfil').value = "Técnico";
-            document.getElementById('cad-nte').value = "";
+            document.getElementById('user-form-id').value = "";
+            document.getElementById('user-form-nome').value = "";
+            document.getElementById('user-form-email').value = "";
+            document.getElementById('user-form-senha').value = "";
+            document.getElementById('user-form-perfil').value = "Técnico";
+            document.getElementById('user-form-nte').value = "";
             document.getElementById('modal-cadastro-usuario').classList.remove('hidden');
         }
 
@@ -380,11 +377,12 @@
             const u = usuariosDB.find(user => user.id == id);
             if(u) {
                 document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Informações do Técnico";
-                document.getElementById('cad-id').value = u.id;
-                document.getElementById('cad-nome').value = u.nome;
-                document.getElementById('cad-email').value = u.email;
-                document.getElementById('cad-perfil').value = u.perfil;
-                document.getElementById('cad-nte').value = u.nte_id || "";
+                document.getElementById('user-form-id').value = u.id;
+                document.getElementById('user-form-nome').value = u.nome;
+                document.getElementById('user-form-email').value = u.email;
+                document.getElementById('user-form-senha').value = u.senha || "";
+                document.getElementById('user-form-perfil').value = u.perfil;
+                document.getElementById('user-form-nte').value = u.nte_id || "";
                 document.getElementById('modal-cadastro-usuario').classList.remove('hidden');
             }
         }
@@ -393,17 +391,18 @@
             document.getElementById('modal-cadastro-usuario').classList.add('hidden'); 
         }
 
-        async function salvarUsuario(event) {
+        async function salvarNovoUsuarioFormularioMaster(event) {
             event.preventDefault();
             
-            const idInput = document.getElementById('cad-id').value;
+            const idInput = document.getElementById('user-form-id').value;
             const id = typeof idInput === 'string' ? idInput.trim() : idInput;
             
             const payload = {
-                nome: document.getElementById('cad-nome').value.trim(),
-                email: document.getElementById('cad-email').value.trim(),
-                perfil: document.getElementById('cad-perfil').value,
-                nte_id: document.getElementById('cad-nte').value || null
+                nome: document.getElementById('user-form-nome').value.toUpperCase().trim(),
+                email: document.getElementById('user-form-email').value.trim(),
+                senha: document.getElementById('user-form-senha').value,
+                perfil: document.getElementById('user-form-perfil').value,
+                nte_id: document.getElementById('user-form-nte').value || null
             };
 
             const headersComRetorno = {
@@ -432,11 +431,11 @@
                 }
 
                 fecharModalUsuario();
-                alert("✨ Registro processado com sucesso no Supabase!");
+                alert("✨ Técnico registrado com sucesso no Supabase!");
                 carregarListaUsuarios();
 
             } catch (err) {
-                console.error("Erro crítico ao persistir dados no Supabase:", err);
+                console.error("Erro crítico ao salvar no Supabase:", err);
                 alert(`Erro ao salvar: ${err.message}`);
             }
         }
@@ -455,7 +454,13 @@
             document.getElementById('sistema-dashboard').classList.add('hidden'); 
             document.getElementById('tela-login').classList.remove('hidden'); 
         }
+
+        // Executa a carga inicial quando a página carrega 100%
+        window.addEventListener('DOMContentLoaded', () => {
+            carregarListaUsuarios();
+        });
     </script>
 </body>
+</html>
 </html>
 
