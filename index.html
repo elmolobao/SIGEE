@@ -123,10 +123,7 @@
                     <table class="w-full text-left border-collapse text-[11px]">
                         <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
                             <tr>
-                                <th class="p-2.5">Escola / Município</th>
-                                <th class="p-2.5 text-center">NTE</th>
-                                <th class="p-2.5 text-center">Acervo</th>
-                                <th class="p-2.5 text-center">Dependência</th>
+                                <th class="p-2.5">Cód. MEC / Escola / Município</th>
                                 <th class="p-2.5 text-center">Ações</th>
                             </tr>
                         </thead>
@@ -213,32 +210,16 @@
             <form id="form-escola" onsubmit="salvarEscolaFormulario(event)" class="space-y-3 text-xs">
                 <input type="hidden" id="esc-id">
                 <div>
+                    <label class="block font-semibold mb-1">Código MEC</label>
+                    <input type="text" id="esc-codmec" placeholder="Opcional" class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
                     <label class="block font-semibold mb-1">Nome da Escola</label>
                     <input type="text" id="esc-nome" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
                 </div>
                 <div>
                     <label class="block font-semibold mb-1">Município</label>
                     <input type="text" id="esc-municipio" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
-                </div>
-                <div>
-                    <label class="block font-semibold mb-1">NTE Coordenador</label>
-                    <select id="esc-nte" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white"></select>
-                </div>
-                <div>
-                    <label class="block font-semibold mb-1">Status de Recolhimento do Acervo</label>
-                    <select id="esc-acervo" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
-                        <option value="Recolhido">Recolhido</option>
-                        <option value="Sob Inspeção">Sob Inspeção</option>
-                        <option value="Não Localizado">Não Localizado</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block font-semibold mb-1">Dependência Administrativa</label>
-                    <select id="esc-dependencia" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
-                        <option value="Estadual">Estadual</option>
-                        <option value="Municipal">Municipal</option>
-                        <option value="Privada">Privada</option>
-                    </select>
                 </div>
                 <div class="flex justify-end gap-2 pt-2 border-t">
                     <button type="button" onclick="fecharModalEscola()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition cursor-pointer">Cancelar</button>
@@ -266,13 +247,9 @@
                     <input type="password" id="user-senha-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none">
                 </div>
                 <div>
-                    <label class="block font-semibold mb-1">Lotação Regional (NTE)</label>
-                    <select id="user-nte-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white"></select>
-                </div>
-                <div>
                     <label class="block font-semibold mb-1">Nível de Perfil Técnico</label>
                     <select id="user-perfil-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
-                        <option value="Técnico Regional">Técnico Regional</option>
+                        <option value="Tecnico">Técnico Regional</option>
                         <option value="Master">Master (Gestor Central)</option>
                     </select>
                 </div>
@@ -296,23 +273,6 @@
         let usuariosDB = [];
         let logsDB = [];
         let usuarioLogado = null;
-
-        function inicializarSelectsNteEcosystem() {
-            const selects = ['esc-nte', 'user-nte-input'];
-            selects.forEach(id => {
-                const select = document.getElementById(id);
-                if (select) {
-                    select.innerHTML = "";
-                    for (let i = 1; i <= 27; i++) {
-                        select.innerHTML += `<option value="NTE ${String(i).padStart(2, '0')}">NTE ${String(i).padStart(2, '0')}</option>`;
-                    }
-                }
-            });
-        }
-
-        window.onload = function() {
-            inicializarSelectsNteEcosystem();
-        };
 
         async function sincronizarTabelasDoSupabase() {
             try {
@@ -351,7 +311,7 @@
                 .from('usuarios_sigee')
                 .select('*')
                 .eq('email', emailInput)
-                .eq('senha', senhaInput);
+                .eq('senha_hash', senhaInput);
 
             if (usuariosencontrados && usuariosencontrados.length > 0) {
                 const usuario = usuariosencontrados[0];
@@ -360,7 +320,7 @@
                 document.getElementById('tela-login').classList.add('hidden');
                 document.getElementById('sistema-dashboard').classList.remove('hidden');
                 document.getElementById('user-nome').innerText = usuario.nome;
-                document.getElementById('user-perfil').innerText = `${usuario.perfil} | ${usuario.nte}`;
+                document.getElementById('user-perfil').innerText = `${usuario.perfil}`;
                 
                 if (usuario.perfil === "Master") {
                     document.getElementById('menu-usuarios').classList.remove('hidden');
@@ -372,7 +332,7 @@
                 await registrarLogNoSupabase("Acesso realizado ao painel operacional.");
                 navegar('painel');
             } else {
-                alert("Credenciais inválidas, ou operador desativado no escopo regional.");
+                alert("Credenciais inválidas ou operador não localizado.");
             }
         }
 
@@ -398,8 +358,8 @@
 
             document.getElementById('dash-escolas').innerText = escList.length;
             document.getElementById('dash-usuarios').innerText = userList.length;
-            document.getElementById('dash-acervos').innerText = escList.filter(e => e && e.acervo === "Recolhido").length;
-            document.getElementById('dash-estaduais').innerText = escList.filter(e => e && e.dependencia === "Estadual").length;
+            document.getElementById('dash-acervos').innerText = escList.length; 
+            document.getElementById('dash-estaduais').innerText = escList.length;
             document.getElementById('dash-municipios').innerText = [...new Set(escList.filter(e => e && e.municipio).map(e => e.municipio))].length;
             
             document.getElementById('dash-proc-desarquivamento').innerText = procList.filter(p => p && p.etapa === "Desarquivamento").length;
@@ -487,7 +447,7 @@
             const filtro = document.getElementById('filtro-escola-busca').value.toUpperCase();
 
             const filtered = escolasDB.filter(e => 
-                e && ((e.nome || '').toUpperCase().includes(filtro) || (e.municipio || '').toUpperCase().includes(filtro))
+                e && ((e.nome_escola || '').toUpperCase().includes(filtro) || (e.municipio || '').toUpperCase().includes(filtro))
             );
 
             document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtered.length} de ${escolasDB.length} escolas`;
@@ -495,10 +455,11 @@
             filtered.forEach(e => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${e.nome || ''} <span class="block text-[10px] text-gray-400">${e.municipio || ''}</span></td>
-                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte || ''}</td>
-                        <td class="p-2.5 text-center">${e.acervo || 'Não Informado'}</td>
-                        <td class="p-2.5 text-center">${e.dependencia || 'Não Informado'}</td>
+                        <td class="p-2.5 font-bold uppercase">
+                            <span class="text-[10px] text-blue-600 font-mono block">MEC: ${e.cod_mec || 'N/A'}</span>
+                            ${e.nome_escola || ''} 
+                            <span class="block text-[10px] text-gray-400">${e.municipio || ''}</span>
+                        </td>
                         <td class="p-2.5 text-center">
                             <button onclick="editarEscolaClick(${e.id})" class="text-blue-600 hover:text-blue-800 font-bold cursor-pointer">Editar</button>
                         </td>
@@ -519,11 +480,9 @@
             const e = escolasDB.find(item => item.id == id);
             if(!e) return;
             document.getElementById('esc-id').value = e.id;
-            document.getElementById('esc-nome').value = e.nome || '';
+            document.getElementById('esc-codmec').value = e.cod_mec || '';
+            document.getElementById('esc-nome').value = e.nome_escola || '';
             document.getElementById('esc-municipio').value = e.municipio || '';
-            document.getElementById('esc-nte').value = e.nte || 'NTE 01';
-            document.getElementById('esc-acervo').value = e.acervo || 'Recolhido';
-            document.getElementById('esc-dependencia').value = e.dependencia || 'Estadual';
             document.getElementById('titulo-modal-escola').innerText = "📝 Editar Dados da Unidade";
             document.getElementById('modal-escola').classList.remove('hidden');
         }
@@ -532,20 +491,18 @@
             event.preventDefault();
             const id = document.getElementById('esc-id').value;
             const payload = {
-                nome: document.getElementById('esc-nome').value.toUpperCase().trim(),
-                municipio: document.getElementById('esc-municipio').value.toUpperCase().trim(),
-                nte: document.getElementById('esc-nte').value,
-                acervo: document.getElementById('esc-acervo').value,
-                dependencia: document.getElementById('esc-dependencia').value
+                cod_mec: document.getElementById('esc-codmec').value.toUpperCase().trim() || null,
+                nome_escola: document.getElementById('esc-nome').value.toUpperCase().trim(),
+                municipio: document.getElementById('esc-municipio').value.toUpperCase().trim()
             };
 
             try {
                 if(id) {
                     await supabase.from('escolas_sigee').update(payload).eq('id', id);
-                    await registrarLogNoSupabase(`Editou dados da escola: ${payload.nome}`);
+                    await registrarLogNoSupabase(`Editou dados da escola: ${payload.nome_escola}`);
                 } else {
                     await supabase.from('escolas_sigee').insert([payload]);
-                    await registrarLogNoSupabase(`Cadastrou nova escola: ${payload.nome}`);
+                    await registrarLogNoSupabase(`Cadastrou nova escola: ${payload.nome_escola}`);
                 }
                 fecharModalEscola();
                 await sincronizarTabelasDoSupabase();
@@ -585,9 +542,8 @@
             document.getElementById('user-id').value = u.id;
             document.getElementById('user-nome-input').value = u.nome || '';
             document.getElementById('user-email-input').value = u.email || '';
-            document.getElementById('user-senha-input').value = u.senha || '';
-            document.getElementById('user-nte-input').value = u.nte || 'NTE 01';
-            document.getElementById('user-perfil-input').value = u.perfil || 'Técnico Regional';
+            document.getElementById('user-senha-input').value = u.senha_hash || '';
+            document.getElementById('user-perfil-input').value = u.perfil || 'Tecnico';
             document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
             document.getElementById('modal-usuario').classList.remove('hidden');
         }
@@ -598,8 +554,7 @@
             const payload = {
                 nome: document.getElementById('user-nome-input').value.toUpperCase().trim(),
                 email: document.getElementById('user-email-input').value.trim(),
-                senha: document.getElementById('user-senha-input').value,
-                nte: document.getElementById('user-nte-input').value,
+                senha_hash: document.getElementById('user-senha-input').value,
                 perfil: document.getElementById('user-perfil-input').value
             };
 
@@ -646,13 +601,11 @@
 
                     alert(`Efetuando upload de ${rows.length} escolas. Aguarde a confirmação de conclusão.`);
                     
-                    // 🌟 PROTEÇÃO CONTRA CAMPOS INDEFINIDOS/EM BRANCO NO EXCEL 🌟
+                    // 🌟 MAPEAMENTO ADAPTADO PARA AS COLUNAS REAIS DO SEU BANCO DE DADOS 🌟
                     const formatadas = rows.map(r => ({
-                        nome: String(r.nome || r.Nome || '').toUpperCase().trim(),
-                        municipio: String(r.municipio || r.Municipio || '').toUpperCase().trim(),
-                        nte: String(r.nte || r.Nte || r.NTE || 'NTE 01').trim(),
-                        acervo: String(r.acervo || r.Acervo || 'Recolhido').trim(),
-                        dependencia: String(r.dependencia || r.Dependencia || 'Estadual').trim()
+                        cod_mec: r.cod_mec || r.CodMec || r.codigo || r.Codigo || null,
+                        nome_escola: String(r.nome_escola || r.nome || r.Nome || r.Escola || '').toUpperCase().trim(),
+                        municipio: String(r.municipio || r.Municipio || r.Cidade || '').toUpperCase().trim()
                     }));
 
                     const { error } = await supabase.from('escolas_sigee').insert(formatadas);
@@ -665,6 +618,7 @@
                             renderizarListaEscolasBufferMemoria();
                         }
                     } else {
+                        console.error(error);
                         alert("Erro ao inserir dados no Supabase. Verifique os cabeçalhos.");
                     }
                 } catch(err) { alert("Erro ao ler arquivo Excel."); }
