@@ -129,14 +129,15 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let escolasDB = [];
+        let procesosDB = [];
         let processosDB = [];
         let usuariosDB = [];
-        let usuarioLogado = null; // Instanciada como global corretamente
+        let usuarioLogado = null;
 
         async function sincronizarTabelasDoSupabase() {
             try {
                 const { data: esc } = await supabase.from('escolas_sigee').select('*');
-                if (esc) schoolsDB = esc; escolasDB = esc || [];
+                escolasDB = esc || [];
                 
                 const { data: proc } = await supabase.from('processos_sigee').select('*');
                 processosDB = proc || [];
@@ -159,7 +160,7 @@
                 .single();
 
             if (usuario) {
-                usuarioLogado = usuario; // Define globalmente primeiro
+                usuarioLogado = usuario;
                 document.getElementById('tela-login').classList.add('hidden');
                 document.getElementById('sistema-dashboard').classList.remove('hidden');
                 document.getElementById('user-nome').innerText = usuario.nome;
@@ -226,5 +227,6 @@
     </script>
 </body>
 </html>
+
 
 
