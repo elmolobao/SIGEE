@@ -1517,7 +1517,116 @@ async function configurarStatusUsuario(idUsuario, statusAtual) {
         alert("Erro ao alterar status: " + err.message);
     }
 }
+    <script>
+    console.log("[SIGEE] Carregando módulo de segurança e gestão em escopo isolado.");
 
+    // 1. LISTAGEM DE USUÁRIOS
+    window.carregarListaUsuarios = async function() {
+        console.log("[Gestão] Carregando listagem de usuários do sistema...");
+        const tbody = document.getElementById('tbody-usuarios') || document.getElementById('tabela-usuarios-corpo');
+        if (!tbody) {
+            console.warn("Elemento de tabela para listagem de usuários não encontrado no HTML.");
+            return;
+        }
+
+        try {
+            const { data: usuarios, error } = await supabase
+                .from('usuarios')
+                .select('*')
+                .order('nome', { ascending: true });
+
+            if (error) throw error;
+            tbody.innerHTML = "";
+
+            if (!usuarios || usuarios.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">Nenhum usuário cadastrado.</td></tr>`;
+                return;
+            }
+
+            usuarios.forEach((u) => {
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm";
+                const badgeAtivo = u.ativo 
+                    ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">Ativo</span>`
+                    : `<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">Inativo</span>`;
+
+                row.innerHTML = `
+                    <td class="px-4 py-3 font-semibold text-gray-900">${u.nome || 'Sem Nome'}</td>
+                    <td class="px-4 py-3 text-gray-600">${u.perfil || 'Consulta'}</td>
+                    <td class="px-4 py-3 text-center text-gray-600 font-medium">${u.nte || 'Todas'}</td>
+                    <td class="px-4 py-3 text-center">${badgeAtivo}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="window.configurarStatusUsuario('${u.id}', ${u.ativo})" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium border border-gray-300 transition-colors">
+                            Alternar Status
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (err) {
+            console.error("Erro ao carregar lista de usuários:", err.message);
+        }
+    };
+
+    // 2. MODAL DE CRIAÇÃO
+    window.abrirModalCriarUsuario = function() {
+        console.log("[Gestão] Abrindo modal de criação...");
+        const modal = document.getElementById('modal-master-controle'); 
+        if (modal) {
+            modal.classList.remove('hidden');
+        } else {
+            alert("O modal com id 'modal-master-controle' não foi localizado no seu código HTML.");
+        }
+    };
+
+    // 3. AUDITORIA DE LOGS
+    window.carregarLogs = async function() {
+        console.log("[Segurança] Carregando logs de auditoria...");
+        const tbody = document.getElementById('tbody-logs');
+        if (!tbody) return;
+
+        try {
+            const { data: logs, error } = await supabase
+                .from('logs_sistema')
+                .select('*')
+                .order('criado_em', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+            tbody.innerHTML = "";
+
+            logs.forEach(l => {
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-100 text-xs text-gray-600";
+                row.innerHTML = `
+                    <td class="px-4 py-2 font-mono">${new Date(l.criado_em).toLocaleString('pt-BR')}</td>
+                    <td class="px-4 py-2 font-bold text-gray-700">${l.acao}</td>
+                    <td class="px-4 py-2">${l.descricao}</td>
+                    <td class="px-4 py-2 text-gray-500">${l.usuario_nome || 'Sistema'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-amber-600 bg-amber-50">Auditoria de Logs indisponível no momento.</td></tr>`;
+        }
+    };
+
+    // 4. MUDANÇA DE STATUS DE USUÁRIO
+    window.configurarStatusUsuario = async function(idUsuario, statusAtual) {
+        try {
+            const { error } = await supabase
+                .from('usuarios')
+                .update({ ativo: !statusAtual })
+                .eq('id', idUsuario);
+
+            if (error) throw error;
+            alert("Status do usuário atualizado com sucesso!");
+            window.carregarListaUsuarios();
+        } catch(err) {
+            alert("Erro ao alterar status: " + err.message);
+        }
+    };
+</script>
 // =========================================================================
 // MÓDULO INJETADO DE FORMA SEGURA: GESTÃO DE USUÁRIOS (GLOBAL)
 // =========================================================================
