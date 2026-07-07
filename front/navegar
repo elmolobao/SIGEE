@@ -7,150 +7,337 @@
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
-  <script>
-    console.log("[SIGEE-Core] Inicializando barramento global de funções...");
+    <script>
+        console.log("[SIGEE-Core] Inicializando barramento global de funções...");
 
-    // 1. ROTAS E NAVEGAÇÃO INTERNA ENTRE ABAS E SEÇÕES
-    window.navegar = function(idTela) {
-        console.log("[Navegação] Alterando visualização para a tela:", idTela);
-        
-        // Esconde todas as seções padrões que usem ID com prefixos conhecidos
-        const secoes = document.querySelectorAll('section, [id^="aba-"], [id^="tela-"], [id^="secao-"]');
-        secoes.forEach(s => s.classList.add('hidden'));
-
-        // Tenta encontrar a aba pelo ID exato ou pelas variações comuns (ex: aba-usuarios, tela-usuarios)
-        const telaDestino = document.getElementById(idTela) 
-            || document.getElementById(`aba-${idTela}`) 
-            || document.getElementById(`tela-${idTela}`);
-
-        if (telaDestino) {
-            telaDestino.classList.remove('hidden');
-        } else {
-            console.warn(`[Navegação] O contêiner de destino '${idTela}' não foi localizado no HTML.`);
-        }
-
-        // Dispara o carregamento automático de dados baseados na tela ativa
-        if (idTela === 'usuarios') {
-            if (typeof window.carregarListaUsuarios === 'function') window.carregarListaUsuarios();
-        }
-        if (idTela === 'logs') {
-            if (typeof window.carregarLogs === 'function') window.carregarLogs();
-        }
-    };
-
-    // 2. CARREGAR LISTA DE USUÁRIOS DO SUPABASE
-    window.carregarListaUsuarios = async function() {
-        console.log("[Gestão] Solicitando dados de usuários...");
-        const tbody = document.getElementById('tbody-usuarios') || document.getElementById('tabela-usuarios-corpo');
-        if (!tbody) return;
-
-        try {
-            if (typeof supabase === 'undefined') return console.error("Supabase indisponível.");
+        // ==========================================
+        // 1. ROTAS E NAVEGAÇÃO INTERNA ENTRE ABAS
+        // ==========================================
+        window.navegar = function(idTela) {
+            console.log("[Navegação] Alterando visualização para a tela:", idTela);
             
-            const { data: usuarios, error } = await supabase
-                .from('usuarios')
-                .select('*')
-                .order('nome', { ascending: true });
+            const secoes = document.querySelectorAll('section, [id^="aba-"], [id^="tela-"], [id^="secao-"]');
+            secoes.forEach(s => s.classList.add('hidden'));
 
-            if (error) throw error;
-            tbody.innerHTML = "";
+            const telaDestino = document.getElementById(idTela) 
+                || document.getElementById(`aba-${idTela}`) 
+                || document.getElementById(`tela-${idTela}`);
+                
+            if (telaDestino) {
+                telaDestino.classList.remove('hidden');
+            } else {
+                console.warn(`[Navegação] O contêiner de destino '${idTela}' não foi localizado no HTML.`);
+            }
 
-            if (!usuarios || usuarios.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">Nenhum usuário cadastrado.</td></tr>`;
+            if (idTela === 'usuarios') {
+                if (typeof window.carregarListaUsuarios === 'function') window.carregarListaUsuarios();
+            }
+            if (idTela === 'logs') {
+                if (typeof window.carregarLogs === 'function') window.carregarLogs();
+            }
+        };
+
+        // ==========================================
+        // 2. GESTÃO E CARREGAMENTO DE USUÁRIOS
+        // ==========================================
+        window.carregarListaUsuarios = async function() {
+            console.log("[Gestão] Solicitando dados de usuários...");
+            const tbody = document.getElementById('tbody-usuarios') || document.getElementById('tabela-usuarios-corpo');
+            if (!tbody) return;
+
+            try {
+                if (typeof supabase === 'undefined') return console.error("Supabase indisponível.");
+                const { data: usuarios, error } = await supabase
+                    .from('usuarios')
+                    .select('*')
+                    .order('nome', { ascending: true });
+
+                if (error) throw error;
+                tbody.innerHTML = "";
+
+                if (!usuarios || usuarios.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">Nenhum usuário cadastrado.</td></tr>`;
+                    return;
+                }
+
+                usuarios.forEach((u) => {
+                    const row = document.createElement('tr');
+                    row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm";
+                    const badgeAtivo = u.ativo 
+                        ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">Ativo</span>`
+                        : `<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">Inativo</span>`;
+
+                    row.innerHTML = `
+                        <td class="px-4 py-3 font-semibold text-gray-900">${u.nome || 'Sem Nome'}</td>
+                        <td class="px-4 py-3 text-gray-600">${u.perfil || 'Consulta'}</td>
+                        <td class="px-4 py-3 text-center text-gray-600 font-medium">${u.nte || 'Todas'}</td>
+                        <td class="px-4 py-3 text-center">${badgeAtivo}</td>
+                        <td class="px-4 py-3 text-center">
+                            <button onclick="window.configurarStatusUsuario('${u.id}', ${u.ativo})" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium border border-gray-300">
+                                Alternar Status
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error("Falha no carregamento dos usuários:", err.message);
+            }
+        };
+
+        window.abrirModalCriarUsuario = function() {
+            const modal = document.getElementById('modal-master-controle');
+            if (modal) modal.classList.remove('hidden');
+        };
+
+        window.configurarStatusUsuario = async function(idUsuario, statusAtual) {
+            try {
+                const { error } = await supabase
+                    .from('usuarios')
+                    .update({ ativo: !statusAtual })
+                    .eq('id', idUsuario);
+                if (error) throw error;
+                alert("Status atualizado com sucesso!");
+                window.carregarListaUsuarios();
+            } catch(err) {
+                alert(err.message);
+            }
+        };
+
+        // ==========================================
+        // 3. CARREGAR REGISTROS DE LOGS DO SISTEMA
+        // ==========================================
+        window.carregarLogs = async function() {
+            const tbody = document.getElementById('tbody-logs') || document.getElementById('tabela-logs-corpo');
+            if (!tbody) return;
+            try {
+                const { data: logs, error } = await supabase
+                    .from('logs_sistema')
+                    .select('*')
+                    .order('criado_em', { ascending: false })
+                    .limit(50);
+
+                if (error) throw error;
+                tbody.innerHTML = "";
+                logs.forEach(l => {
+                    const row = document.createElement('tr');
+                    row.className = "border-b border-gray-100 text-xs text-gray-600";
+                    row.innerHTML = `
+                        <td class="px-4 py-2 font-mono">${new Date(l.criado_em).toLocaleString('pt-BR')}</td>
+                        <td class="px-4 py-2 font-bold text-gray-700">${l.usuario_nome || 'Sistema'}</td>
+                        <td class="px-4 py-2">${l.acao}</td>
+                        <td class="px-4 py-2 text-gray-500">${l.descricao}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-amber-600 bg-amber-50">Auditoria de logs indisponível.</td></tr>`;
+            }
+        };
+
+        // ==========================================
+        // 4. FUNÇÕES DE INÍCIO DE EDIÇÃO DE PROCESSO
+        // ==========================================
+        window.iniciarEdicaoProcesso = async function(idProcesso) {
+            console.log(`[Edição] Solicitando dados do processo ID: ${idProcesso}`);
+            
+            const modal = document.getElementById('modal-editar-processo');
+            const inputId = document.getElementById('edit-proc-id');
+            const inputNome = document.getElementById('edit-proc-nome');
+            const selectDoc = document.getElementById('edit-proc-doc');
+            const selectNivel = document.getElementById('edit-proc-nivel');
+
+            if (!modal || !inputId || !inputNome || !selectDoc || !selectNivel) {
+                console.error("[Edição] Elementos do modal de edição não foram localizados.");
                 return;
             }
 
-            usuarios.forEach((u) => {
-                const row = document.createElement('tr');
-                row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm";
-                const badgeAtivo = u.ativo 
-                    ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">Ativo</span>`
-                    : `<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">Inativo</span>`;
+            try {
+                const { data: processo, error } = await supabase
+                    .from('processos')
+                    .select('*')
+                    .eq('id', idProcesso)
+                    .single();
 
-                row.innerHTML = `
-                    <td class="px-4 py-3 font-semibold text-gray-900">${u.nome || 'Sem Nome'}</td>
-                    <td class="px-4 py-3 text-gray-600">${u.perfil || 'Consulta'}</td>
-                    <td class="px-4 py-3 text-center text-gray-600 font-medium">${u.nte || 'Todas'}</td>
-                    <td class="px-4 py-3 text-center">${badgeAtivo}</td>
-                    <td class="px-4 py-3 text-center">
-                        <button onclick="window.configurarStatusUsuario('${u.id}', ${u.ativo})" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium border border-gray-300">
-                            Alternar Status
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        } catch (err) {
-            console.error("Falha no carregamento dos usuários:", err.message);
-        }
-    };
+                if (error) throw error;
+                if (!processo) throw new Error("Processo não localizado.");
 
-    // 3. ABRIR MODAL DE CRIAÇÃO DE USUÁRIOS
-    window.abrirModalCriarUsuario = function() {
-        const modal = document.getElementById('modal-master-controle'); 
-        if (modal) modal.classList.remove('hidden');
-    };
+                inputId.value = processo.id;
+                inputNome.value = processo.nome_aluno || processo.nome || "";
+                selectDoc.value = processo.documento_solicitado || "Histórico";
+                selectNivel.value = processo.nivel_oferta || "Médio";
 
-    // 4. CARREGAR REGISTROS DE LOGS DO SISTEMA
-    window.carregarLogs = async function() {
-        const tbody = document.getElementById('tbody-logs');
-        if (!tbody) return;
-        try {
-            const { data: logs, error } = await supabase
-                .from('logs_sistema')
-                .select('*')
-                .order('criado_em', { ascending: false })
-                .limit(50);
+                modal.classList.remove('hidden');
+            } catch (err) {
+                console.error("[Edição] Erro ao iniciar edição:", err.message);
+                alert(`Erro ao carregar dados para edição: ${err.message}`);
+            }
+        };
 
-            if (error) throw error;
-            tbody.innerHTML = "";
-            logs.forEach(l => {
-                const row = document.createElement('tr');
-                row.className = "border-b border-gray-100 text-xs text-gray-600";
-                row.innerHTML = `
-                    <td class="px-4 py-2 font-mono">${new Date(l.criado_em).toLocaleString('pt-BR')}</td>
-                    <td class="px-4 py-2 font-bold text-gray-700">${l.acao}</td>
-                    <td class="px-4 py-2">${l.descricao}</td>
-                    <td class="px-4 py-2 text-gray-500">${l.usuario_nome || 'Sistema'}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-amber-600 bg-amber-50">Auditoria de logs indisponível.</td></tr>`;
-        }
-    };
+        window.fecharModalEditarProcesso = function() {
+            const modal = document.getElementById('modal-editar-processo');
+            const form = document.getElementById('form-editar-processo-dados');
+            if (modal) modal.classList.add('hidden');
+            if (form) form.reset();
+        };
 
-    // 5. ALTERNAR STATUS ATIVO/INATIVO DE USUÁRIOS
-    window.configurarStatusUsuario = async function(idUsuario, statusAtual) {
-        try {
-            const { error } = await supabase
-                .from('usuarios')
-                .update({ ativo: !statusAtual })
-                .eq('id', idUsuario);
+        window.salvarEdicaoDiretaProcesso = async function(event) {
+            event.preventDefault();
+            const idProcesso = document.getElementById('edit-proc-id').value;
+            const nomeAluno = document.getElementById('edit-proc-nome').value.trim().toUpperCase();
+            const docSolicitado = document.getElementById('edit-proc-doc').value;
+            const nivelOferta = document.getElementById('edit-proc-nivel').value;
 
-            if (error) throw error;
-            alert("Status atualizado com sucesso!");
-            window.carregarListaUsuarios();
-        } catch(err) {
-            alert(err.message);
-        }
-    };
-</script>
-    window.configurarStatusUsuario = async function(idUsuario, statusAtual) {
-        try {
-            const { error } = await supabase
-                .from('usuarios')
-                .update({ ativo: !statusAtual })
-                .eq('id', idUsuario);
+            try {
+                const { error } = await supabase
+                    .from('processos')
+                    .update({
+                        nome_aluno: nomeAluno,
+                        documento_solicitado: docSolicitado,
+                        nivel_oferta: nivelOferta,
+                        atualizado_em: new Date().toISOString()
+                    })
+                    .eq('id', idProcesso);
 
-            if (error) throw error;
-            alert("Status atualizado!");
-            window.carregarListaUsuarios();
-        } catch(err) {
-            alert(err.message);
-        }
-    };
-</script>
+                if (error) throw error;
+
+                alert("Modificações salvas com sucesso!");
+                window.fecharModalEditarProcesso();
+                if (typeof window.renderizarProcessosFlutuantes === 'function') window.renderizarProcessosFlutuantes();
+            } catch (err) {
+                alert(`Erro ao salvar modificações: ${err.message}`);
+            }
+        };
+
+        // ==========================================
+        // 5. FLUXO DE APURAÇÃO (TRAMITAÇÃO DINÂMICA)
+        // ==========================================
+        window.tramitarProcessoFluxo = async function(idProcesso, etapaAtual) {
+            let proximaEtapa = "";
+
+            switch(etapaAtual) {
+                case 'Desarquivamento':
+                    window.abrirModalPastaEncontrada(idProcesso);
+                    return; 
+                case 'Análise':
+                    proximaEtapa = 'Digitação';
+                    break;
+                case 'Digitação':
+                    proximaEtapa = 'Conferência';
+                    break;
+                case 'Conferência':
+                    proximaEtapa = 'Assinatura';
+                    break;
+                case 'Assinatura':
+                    proximaEtapa = 'Deferido';
+                    break;
+                default:
+                    return;
+            }
+
+            if (!confirm(`Deseja evoluir o processo da etapa "${etapaAtual}" para "${proximaEtapa}"?`)) return;
+
+            try {
+                const { error } = await supabase
+                    .from('processos')
+                    .update({
+                        etapa_atual: proximaEtapa,
+                        atualizado_em: new Date().toISOString()
+                    })
+                    .eq('id', idProcesso);
+
+                if (error) throw error;
+                alert(`Processo avançado para ${proximaEtapa}!`);
+                if (typeof window.renderizarProcessosFlutuantes === 'function') window.renderizarProcessosFlutuantes();
+            } catch (err) {
+                alert(`Erro ao tramitar processo: ${err.message}`);
+            }
+        };
+
+        window.abrirModalPastaEncontrada = function(idProcesso) {
+            const modal = document.getElementById('modal-pasta-encontrada');
+            const inputId = document.getElementById('modal-proc-id');
+            if (modal && inputId) {
+                inputId.value = idProcesso;
+                modal.classList.remove('hidden');
+            }
+        };
+
+        window.fecharModalPastaEncontrada = function() {
+            const modal = document.getElementById('modal-pasta-encontrada');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        window.salvarPastaEncontradaTransicao = async function(event) {
+            event.preventDefault();
+            const idProcesso = document.getElementById('modal-proc-id').value;
+            const tipoArquivo = document.getElementById('modal-proc-tipo-arq').value;
+            const localArquivo = document.getElementById('modal-proc-local').value;
+            const prioridade = document.getElementById('modal-proc-prioridade').value;
+
+            try {
+                const { error } = await supabase
+                    .from('processos')
+                    .update({
+                        tipo_arquivo: tipoArquivo,
+                        local_arquivo: localArquivo,
+                        prioridade: prioridade,
+                        etapa_atual: 'Análise',
+                        atualizado_em: new Date().toISOString()
+                    })
+                    .eq('id', idProcesso);
+
+                if (error) throw error;
+                alert("Processo enviado para Análise com sucesso!");
+                window.fecharModalPastaEncontrada();
+                if (typeof window.renderizarProcessosFlutuantes === 'function') window.renderizarProcessosFlutuantes();
+            } catch (err) {
+                alert(`Erro ao processar transição: ${err.message}`);
+            }
+        };
+
+        // ==========================================
+        // 6. PAINEL ADVANCED MASTER (FORÇAR FASE)
+        // ==========================================
+        window.abrirModalMasterControle = function(idProcesso) {
+            const modal = document.getElementById('modal-master-controle');
+            const inputId = document.getElementById('master-proc-id');
+            if (modal && inputId) {
+                inputId.value = idProcesso;
+                modal.classList.remove('hidden');
+            }
+        };
+
+        window.fecharModalMaster = function() {
+            const modal = document.getElementById('modal-master-controle');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        window.executarForcarFaseMaster = async function(event) {
+            event.preventDefault();
+            const idProcesso = document.getElementById('master-proc-id').value;
+            const faseAlvo = document.getElementById('master-fase-alvo').value;
+
+            if (!confirm(`Confirma forçar a mudança administrativa para a fase: "${faseAlvo}"?`)) return;
+
+            try {
+                const { error } = await supabase
+                    .from('processos')
+                    .update({
+                        etapa_atual: faseAlvo,
+                        atualizado_em: new Date().toISOString()
+                    })
+                    .eq('id', idProcesso);
+
+                if (error) throw error;
+                alert(`Sucesso! Processo movido para: ${faseAlvo}`);
+                window.fecharModalMaster();
+                if (typeof window.renderizarProcessosFlutuantes === 'function') window.renderizarProcessosFlutuantes();
+            } catch (err) {
+                alert(`Erro crítico Master: ${err.message}`);
+            }
+        };
+    </script>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 font-normal">
 
@@ -197,7 +384,6 @@
         </aside>
 
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
-            
             <section id="aba-painel" class="space-y-6">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-4">
                     <div><h1 class="text-3xl font-bold text-blue-900">Dashboard de Monitoramento</h1></div>
@@ -234,9 +420,7 @@
 
             <section id="aba-processos" class="hidden space-y-6">
                 <div class="flex justify-between items-center bg-white p-4 rounded-xl border shadow-xs">
-                    <div>
-                        <h2 class="text-lg font-bold text-blue-900">Gerenciamento de Fluxos Dinâmicos</h2>
-                    </div>
+                    <div><h2 class="text-lg font-bold text-blue-900">Gerenciamento de Fluxos Dinâmicos</h2></div>
                     <button onclick="abrirFormularioNovaSolicitacao()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-lg text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition">➕ 📥 Nova Solicitação</button>
                 </div>
 
@@ -363,7 +547,14 @@
                 </div>
                 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
                     <table class="w-full text-left border-collapse text-sm">
-                        <thead class="bg-gray-100 font-semibold border-b"><tr><th class="p-4">Data/Hora de Registro</th><th class="p-4">Técnico</th><th class="p-4">E-mail</th><th class="p-4">Ação Executada</th></tr></thead>
+                        <thead class="bg-gray-100 font-semibold border-b">
+                            <tr>
+                                <th class="p-4">Data/Hora de Registro</th>
+                                <th class="p-4">Técnico / E-mail</th>
+                                <th class="p-4">Ação Executada</th>
+                                <th class="p-4">Descrição detalhada</th>
+                            </tr>
+                        </thead>
                         <tbody id="tabela-logs-corpo" class="divide-y divide-gray-100 text-gray-700"></tbody>
                     </table>
                 </div>
@@ -514,433 +705,13 @@
                         <option value="Normal">Normal</option><option value="Urgente">Urgente</option><option value="2ª via">2ª via</option><option value="Autenticidade">Autenticidade</option><option value="CEE">CEE</option><option value="MP">MP</option><option value="Ouvidoria">Ouvidoria</option><option value="Exterior">Exterior</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">4. Selecione o Analista (Por NTE)</label>
-                    <select id="modal-tecnico-selecionavel" required class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                </div>
-                <div class="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input type="checkbox" id="modal-proc-chk-email" onchange="toggleBotaoImpressao()" class="mt-0.5 h-4 w-4 text-purple-900">
-                        <span class="text-xs text-purple-950 font-semibold select-none">Enviar e-mail: (02-ALUNO ANÁLISE) obrigatório para habilitar o envio</span>
-                    </label>
-                </div>
-                <div class="flex justify-end space-x-3 pt-2">
+                <div class="flex justify-end space-x-3 pt-2 border-t">
                     <button type="button" onclick="fecharModalPastaEncontrada()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Cancelar</button>
-                    <button type="submit" id="btn-confirmar-impressao" disabled class="px-5 py-2 rounded-lg text-xs font-bold bg-purple-900 text-white disabled:opacity-40 cursor-not-allowed transition duration-200">Enviar para Análise 🔍</button>
+                    <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-purple-900 text-white shadow">Confirmar e Tramitar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="modal-verificar-pendencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border my-8">
-            <div class="bg-amber-600 text-white px-6 py-4"><h3 class="text-base font-bold">📋 Retorno da Análise Estrutural</h3></div>
-            <form id="form-verificar-pendencia" class="p-6 space-y-4" onsubmit="processarSaidaAnalisePendencia(event)">
-                <input type="hidden" id="modal-pend-proc-id">
-                
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Pendência identificada?</label>
-                    <select id="modal-pend-resposta" required onchange="toggleInputTextoPendencia()" class="w-full p-2 border rounded-lg text-sm bg-white font-bold text-gray-800">
-                        <option value="">-- Selecione --</option>
-                        <option value="nao">NÃO (Avançar para Digitação)</option>
-                        <option value="sim">SIM (Avançar para Aba Pendência)</option>
-                    </select>
-                </div>
-
-                <div id="wrapper-sem-pendencia" class="hidden space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Selecione o Digitador (Por NTE)</label>
-                        <select id="modal-digitador-selecionavel" class="w-full p-2 border rounded-lg text-sm bg-gray-50 font-medium"></select>
-                    </div>
-                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <label class="flex items-start gap-2.5 cursor-pointer">
-                            <input type="checkbox" id="modal-chk-email-digitacao" onchange="validarFluxoBotaoAnalise()" class="mt-0.5 h-4 w-4 text-blue-900">
-                            <span class="text-xs text-blue-950 font-semibold select-none">ENVIAR E-MAIL "03-Aluno (Digitação)" (Obrigatório para avançar)</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div id="wrapper-desc-pendencia" class="hidden space-y-4">
-                    <div class="bg-red-50 p-3 rounded-lg border border-red-200 space-y-2">
-                        <p class="text-xs font-bold text-red-900 uppercase">Origem da Pendência:</p>
-                        <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                            <input type="checkbox" id="chk-pend-aluno" onchange="atualizarInterfaceEmaileTextoPendencia()" class="h-4 w-4 text-amber-600"> PENDÊNCIA ALUNO
-                        </label>
-                        <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                            <input type="checkbox" id="chk-pend-inst" onchange="atualizarInterfaceEmaileTextoPendencia()" class="h-4 w-4 text-amber-600"> PENDÊNCIA INSTITUIÇÃO
-                        </label>
-                    </div>
-                    <div id="box-texto-pendencia" class="hidden">
-                        <label class="block text-xs font-bold uppercase text-red-700 mb-1">Informe detalhadamente a Pendência (Obrigatório):</label>
-                        <textarea id="modal-pend-texto" rows="3" placeholder="Escreva aqui os motivos e inconsistências encontradas..." class="w-full p-2 border border-red-300 rounded-lg text-xs bg-white focus:outline-none"></textarea>
-                    </div>
-                    <div id="box-email-pendencia-dinamico"></div>
-                </div>
-
-                <div class="flex justify-end space-x-3 pt-3 border-t">
-                    <button type="button" onclick="fecharModalPendencia()" class="px-4 py-2 border rounded-lg text-xs font-semibold bg-gray-100 cursor-pointer">Voltar</button>
-                    <button type="submit" id="btn-salvar-analise" disabled class="px-5 py-2 rounded-lg text-xs font-bold bg-amber-600 text-white disabled:opacity-40 cursor-not-allowed shadow-md">Confirmar Ação</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-saida-pendencia" class="hidden fixed inset-0 bg-blue-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border">
-            <div class="bg-emerald-600 text-white px-6 py-4"><h3 class="text-base font-bold">📥 Processar Documento Recebido</h3></div>
-            <form id="form-saida-pendencia" class="p-6 space-y-4" onsubmit="salvarSaidaPendenciaParaDigitacao(event)">
-                <input type="hidden" id="modal-saida-proc-id">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">O documento entregue está completo ou parcial?</label>
-                    <select id="modal-saida-tipo-entrega" required onchange="toggleEstruturaSaidaPendencia()" class="w-full p-2 border rounded-lg text-sm bg-white font-bold">
-                        <option value="">-- Selecione --</option>
-                        <option value="completo">COMPLETO (Ir para Digitação)</option>
-                        <option value="parcial">PARCIAL (Continuar em Pendência)</option>
-                    </select>
-                </div>
-// RENDERIZAR E FILTRAR A TABELA DE PROCESSOS CONFORME REGRA DE ACESSO
-function carregarEContarProcessosHorizontais() {
-    const tbody = document.getElementById('tbody-processos');
-    if (!tbody) return;
-
-    // 1. FILTRAGEM EM MEMÓRIA RAM (CACHE LOCAL)
-    let processosFiltrados = globalProcessos;
-
-    // TRAVA DE SEGURANÇA: Se o usuário NÃO for Master, ele só enxerga os processos da sua própria NTE
-    if (usuarioLogado && usuarioLogado.perfil !== 'Master' && usuarioLogado.nte) {
-        const nteDoUsuario = usuarioLogado.nte.toUpperCase().trim();
-        processosFiltrados = processosFiltrados.filter(p => 
-            (p.nte || "").toUpperCase().trim() === nteDoUsuario
-        );
-    }
-
-    // FILTRO ADICIONAL POR ETAPA/FASE DO PROCESSO
-    if (processofaseFiltroAtivo && processofaseFiltroAtivo !== "TODOS") {
-        processosFiltrados = processosFiltrados.filter(p => {
-            const etapaAtual = (p.etapa || "").toUpperCase().trim();
-            const filtroMapeado = processofaseFiltroAtivo.toUpperCase().trim();
-            return etapaAtual === filtroMapeado;
-        });
-    }
-
-    // 2. LIMPEZA E RENDERIZAÇÃO DA INTERFACE
-    tbody.innerHTML = "";
-
-    if (processosFiltrados.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Nenhum processo localizado para os critérios aplicados.</td></tr>`;
-        return;
-    }
-
-    // Otimização por DocumentFragment para evitar travamentos
-    const fragmento = document.createDocumentFragment();
-
-    processosFiltrados.forEach((p, index) => {
-        const row = document.createElement('tr');
-        row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm transition-colors";
-        
-        // Definição visual das badges de status
-        let badgeClasse = "bg-gray-100 text-gray-800";
-        if (p.etapa === 'Análise' || p.etapa === 'Em Análise') badgeClasse = "bg-amber-100 text-amber-800";
-        if (p.etapa === 'Finalizado' || p.etapa === 'Deferido') badgeClasse = "bg-green-100 text-green-800";
-        if (p.etapa === 'Novo' || p.etapa === 'Desarquivamento') badgeClasse = "bg-blue-100 text-blue-800";
-
-        row.innerHTML = `
-            <td class="px-4 py-3 text-center font-medium text-gray-700">${index + 1}</td>
-            <td class="px-4 py-3 font-semibold text-gray-900">${p.aluno || "Não Informado"}</td>
-            <td class="px-4 py-3 text-gray-600">${p.escola || "-"}</td>
-            <td class="px-4 py-3 text-center text-gray-600 font-medium">${p.nte || "-"}</td>
-            <td class="px-4 py-3 text-gray-600">${p.documento || "-"}</td>
-            <td class="px-4 py-3 text-center">
-                <span class="px-2 py-1 rounded text-xs font-bold ${badgeClasse}">
-                    ${p.etapa || "Triagem"}
-                </span>
-            </td>
-            <td class="px-4 py-3 text-center">
-                <button onclick="visualizarDetalhesProcesso('${p.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded text-xs font-semibold border border-indigo-200 transition-colors">
-                    Ver
-                </button>
-            </td>
-        `;
-        fragmento.appendChild(row);
-    });
-
-    tbody.appendChild(fragmento);
-}
-
-// CONTROLADOR DAS ABAS DE FILTRAGEM RÁPIDA DE ETAPAS
-function alterarFiltroEtapaProcesso(novaEtapa) {
-    processofaseFiltroAtivo = novaEtapa;
-    carregarEContarProcessosHorizontais();
-}
-
-// BUSCAR USUÁRIOS COMPLETO DO SUPABASE
-async function carregarUsuariosDoSupabase() {
-    console.log("[Cache] Iniciando busca de usuários no Supabase...");
-    
-    const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .order('nome', { ascending: true });
-
-    if (error) {
-        console.error("Erro crítico ao carregar lista de usuários:", error.message);
-        return;
-    }
-
-    globalUsuarios = data || [];
-    console.log(`[Cache] Sucesso! ${globalUsuarios.length} usuários armazenados localmente.`);
-    
-    if (typeof renderizarTabelaUsuarios === "function") {
-        renderizarTabelaUsuarios();
-    }
-}
-
-// SALVAR NOVO PROCESSO DE ALUNO NO SUPABASE
-async function salvarNovaSolicitacao(event) {
-    event.preventDefault();
-
-    const nomeAluno = document.getElementById('proc-nome-aluno').value;
-    const documento = document.getElementById('proc-documento').value;
-    const nivel = document.getElementById('proc-nivel').value;
-    const modalidade = document.getElementById('proc-modalidade').value;
-
-    const nomeEscola = typeof escolaSelecionadaParaProcesso !== 'undefined' && escolaSelecionadaParaProcesso ? escolaSelecionadaParaProcesso.nome : "Escola Não Informada";
-    const nteEscola = typeof escolaSelecionadaParaProcesso !== 'undefined' && escolaSelecionadaParaProcesso ? escolaSelecionadaParaProcesso.nte : "NTE 01";
-
-    const novoProcesso = {
-        aluno_nome: nomeAluno.toUpperCase(),
-        escola_nome: nomeEscola,
-        documento_tipo: documento,
-        nivel_oferta: nivel,
-        modalidade: modalidade,
-        etapa_atual: "Desarquivamento",
-        dias_decorridos: 0,
-        nte: nteEscola
-    };
-
-    alert("Abrindo solicitação no banco de dados...");
-
-    const { error } = await supabase
-        .from('processos')
-        .insert([novoProcesso]);
-
-    if (error) {
-        alert("Erro ao criar processo no Supabase: " + error.message);
-        return;
-    }
-
-    await registrarLog("Criou Processo", `Aluno: ${nomeAluno.toUpperCase()} | Escola: ${nomeEscola} | Doc: ${documento}`);
-    alert("Solicitação salva com sucesso no banco de dados!");
-    
-    fecharFormularioNovaSolicitacao();
-    await carregarProcessosDoSupabase();
-}
-
-function abrirFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.remove('hidden'); }
-function fecharFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.add('hidden'); }
-function abrirModalNovaEscola() { alert('Função de cadastro manual de escola.'); }
-
-// RECONSTRUÇÃO DA FUNÇÃO DE AUTENTICAÇÃO REALIZAR LOGIN
-async function realizarLogin(event) {
-    event.preventDefault();
-    
-    const campoEmail = document.getElementById('login-email') || document.querySelector('#tela-login input[type="email"]');
-    const campoSenha = document.getElementById('login-senha') || document.querySelector('#tela-login input[type="password"]');
-    
-    if (!campoEmail || !campoSenha) {
-        alert("Erro ao localizar os campos de login no HTML.");
-        return;
-    }
-
-    const email = campoEmail.value;
-    const senha = campoSenha.value;
-
-    if (!email || !senha) {
-        alert("Por favor, preencha todos os campos.");
-        return;
-    }
-
-    alert("Autenticando credenciais...");
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: senha,
-    });
-
-    if (error) {
-        alert("Erro ao realizar login: " + error.message);
-        return;
-    }
-
-    usuarioLogado = data.user;
-    registrarLog("Login", "Usuário autenticou com sucesso no sistema.");
-
-    const loginSection = document.getElementById('tela-login');
-    const dashSection = document.getElementById('sistema-dashboard');
-    
-    if (loginSection) loginSection.classList.add('hidden');
-    if (dashSection) dashSection.classList.remove('hidden');
-
-    if (typeof navegar === 'function') {
-        navegar('painel');
-    }
-}
-
-// INICIALIZAÇÃO UNIFICADA COMPATÍVEL COM SUPABASE
-document.addEventListener("DOMContentLoaded", async () => {
-    // Garante que a tela de login inicie visível
-    const loginSection = document.getElementById('tela-login');
-    const dashSection = document.getElementById('sistema-dashboard');
-    if (loginSection) loginSection.classList.remove('hidden');
-    if (dashSection) dashSection.classList.add('hidden');
-
-    // Vincula o evento de submissão do formulário
-    const formLogin = document.getElementById('form-login') || document.querySelector('#tela-login form');
-    if (formLogin) {
-        formLogin.addEventListener('submit', realizarLogin);
-    } else {
-        const btnLogin = document.querySelector('#tela-login button');
-        if (btnLogin) btnLogin.addEventListener('click', realizarLogin);
-    }
-
-    // Carrega dados iniciais assincronamente
-    await carregarEscolasDoSupabase();
-    await carregarProcessosDoSupabase();
-
-    // Executa encerramentos e renderiza tabelas se existirem
-    if (typeof carregarEContarProcessosHorizontais === "function") {
-        carregarEContarProcessosHorizontais();
-    } else if (typeof renderizarProcessosFlutuantes === "function") {
-        renderizarProcessosFlutuantes();
-    }
-
-    if (typeof carregarDadosDashboardReal === "function") {
-        carregarDadosDashboardReal();
-    }
-});
-// =========================================================================
-// MÓDULO: GESTÃO DE USUÁRIOS E CONTROLE DE ACESSO (SUPABASE)
-// =========================================================================
-
-// 1. CARREGAR LISTA DE USUÁRIOS
-window.carregarListaUsuarios = async function() {
-    console.log("[Gestão] Carregando listagem de usuários do sistema...");
-    const tbody = document.getElementById('tbody-usuarios') || document.getElementById('tabela-usuarios-corpo');
-    if (!tbody) {
-        console.warn("Elemento de tabela para listagem de usuários não encontrado no HTML.");
-        return;
-    }
-
-    try {
-        const { data: usuarios, error } = await supabase
-            .from('usuarios')
-            .select('*')
-            .order('nome', { ascending: true });
-
-        if (error) throw error;
-        tbody.innerHTML = "";
-
-        if (!usuarios || usuarios.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">Nenhum usuário cadastrado.</td></tr>`;
-            return;
-        }
-
-        usuarios.forEach((u) => {
-            const row = document.createElement('tr');
-            row.className = "border-b border-gray-200 hover:bg-gray-50 text-sm";
-            const badgeAtivo = u.ativo 
-                ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">Ativo</span>`
-                : `<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">Inativo</span>`;
-
-            row.innerHTML = `
-                <td class="px-4 py-3 font-semibold text-gray-900">${u.nome || 'Sem Nome'}</td>
-                <td class="px-4 py-3 text-gray-600">${u.perfil || 'Consulta'}</td>
-                <td class="px-4 py-3 text-center text-gray-600 font-medium">${u.nte || 'Todas'}</td>
-                <td class="px-4 py-3 text-center">${badgeAtivo}</td>
-                <td class="px-4 py-3 text-center">
-                    <button onclick="window.configurarStatusUsuario('${u.id}', ${u.ativo})" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium border border-gray-300 transition-colors">
-                        Alternar Status
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (err) {
-        console.error("Erro ao carregar lista de usuários:", err.message);
-    }
-};
-
-// 2. ABRIR MODAL PARA CRIAR USUÁRIO
-window.abrirModalCriarUsuario = function() {
-    console.log("[Gestão] Abrindo modal de criação...");
-    const modal = document.getElementById('modal-master-controle'); 
-    if (modal) {
-        modal.classList.remove('hidden');
-    } else {
-        alert("O modal com id 'modal-master-controle' não foi localizado no seu código HTML.");
-    }
-};
-
-// 3. CARREGAR LOGS DO SISTEMA (AUDITORIA)
-window.carregarLogs = async function() {
-    console.log("[Segurança] Carregando logs de auditoria...");
-    const tbody = document.getElementById('tbody-logs');
-    if (!tbody) return;
-
-    try {
-        const { data: logs, error } = await supabase
-            .from('logs_sistema')
-            .select('*')
-            .order('criado_em', { ascending: false })
-            .limit(50);
-
-        if (error) throw error;
-        tbody.innerHTML = "";
-
-        if (!logs || logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">Nenhum log registrado.</td></tr>`;
-            return;
-        }
-
-        logs.forEach(l => {
-            const row = document.createElement('tr');
-            row.className = "border-b border-gray-100 text-xs text-gray-600";
-            row.innerHTML = `
-                <td class="px-4 py-2 font-mono">${new Date(l.criado_em).toLocaleString('pt-BR')}</td>
-                <td class="px-4 py-2 font-bold text-gray-700">${l.acao}</td>
-                <td class="px-4 py-2">${l.descricao}</td>
-                <td class="px-4 py-2 text-gray-500">${l.usuario_nome || 'Sistema'}</td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (err) {
-        console.warn("Tabela de logs indisponível ou erro ao carregar:", err.message);
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-amber-600 bg-amber-50">Auditoria de Logs indisponível no momento.</td></tr>`;
-    }
-};
-
-// 4. MUDANÇA DE STATUS DE USUÁRIO
-window.configurarStatusUsuario = async function(idUsuario, statusAtual) {
-    if (!usuarioLogado || (usuarioLogado.perfil !== 'Master' && usuarioLogado.perfil !== 'Administrador')) {
-        alert("Ação não permitida para o seu nível de acesso.");
-        return;
-    }
-
-    try {
-        const { error } = await supabase
-            .from('usuarios')
-            .update({ ativo: !statusAtual })
-            .eq('id', idUsuario);
-
-        if (error) throw error;
-        alert("Status do usuário atualizado com sucesso!");
-        window.carregarListaUsuarios();
-    } catch(err) {
-        alert("Erro ao alterar status: " + err.message);
-    }
-};
-
-console.log("[SIGEE] Módulo de segurança e gestão carregado e estabilizado com sucesso.");
-</script>
 </body>
 </html>
