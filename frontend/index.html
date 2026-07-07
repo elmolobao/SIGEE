@@ -1426,23 +1426,74 @@
             } catch (err) {}
         }
 
-        function abrirModalCriarUsuario() {
-            document.getElementById('cad-id').value = "";
-            document.getElementById('form-cadastro-usuario').reset();
-            document.getElementById('titulo-modal-usuario').innerText = "✨ Cadastrar Novo Técnico";
-            document.getElementById('modal-edicao-usuario').classList.remove('hidden');
-        }
-        function fecharModalUsuario() { document.getElementById('modal-edicao-usuario').classList.add('hidden'); }
+// ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
+function controlarModalEdicaoUsuario(deveAbrir = false) {
+    const modal = document.getElementById('modal-edicao-usuario');
+    if (!modal) return;
 
-        function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
-            document.getElementById('cad-id').value = id;
-            document.getElementById('cad-nome').value = nome;
-            document.getElementById('cad-email').value = email;
-            document.getElementById('cad-perfil').value = perfil;
-            document.getElementById('cad-nte').value = nte_id;
-            document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
-            document.getElementById('modal-edicao-usuario').classList.remove('hidden');
-        }
+    // Alterna as classes do Tailwind de forma limpa usando toggle
+    modal.classList.toggle('hidden', !deveAbrir);
+    modal.classList.toggle('flex', deveAbrir);
+}
+
+// Atalhos adaptados para manter o funcionamento do seu HTML original (onclick)
+function abrirModalCriarUsuario() {
+    document.getElementById('cad-id').value = "";
+    document.getElementById('form-cadastro-usuario').reset();
+    document.getElementById('titulo-modal-usuario').innerText = "✨ Cadastrar Novo Técnico";
+    
+    // Abre a modal centralizadamente
+    controlarModalEdicaoUsuario(true);
+}
+
+function fecharModalUsuario() { 
+    controlarModalEdicaoUsuario(false); 
+}
+
+function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
+    document.getElementById('cad-id').value = id;
+    document.getElementById('cad-nome').value = nome;
+    document.getElementById('cad-email').value = email;
+    document.getElementById('cad-perfil').value = perfil;
+    document.getElementById('cad-nte').value = nte_id;
+    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
+    
+    // Abre a modal centralizadamente
+    controlarModalEdicaoUsuario(true);
+}
+    controlarModalEdicaoUsuario(true);
+}
+
+function fecharModalUsuario() { 
+    controlarModalEdicaoUsuario(false); 
+}
+
+function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
+    document.getElementById('cad-id').value = id;
+    document.getElementById('cad-nome').value = nome;
+    document.getElementById('cad-email').value = email;
+    document.getElementById('cad-perfil').value = perfil;
+    document.getElementById('cad-nte').value = nte_id;
+    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
+    
+    // Abre a modal centralizadamente
+    controlarModalEdicaoUsuario(true);
+}
+
+function fecharModalUsuario() { 
+    controlarModalEdicaoUsuario(false); 
+}
+
+function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
+    document.getElementById('cad-id').value = id;
+    document.getElementById('cad-nome').value = nome;
+    document.getElementById('cad-email').value = email;
+    document.getElementById('cad-perfil').value = perfil;
+    document.getElementById('cad-nte').value = nte_id;
+    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
+    
+    controlarModalEdicaoUsuario(true);
+}
 
         async function salvarUsuario(event) {
             event.preventDefault();
