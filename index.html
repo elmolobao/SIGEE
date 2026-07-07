@@ -297,7 +297,6 @@
         let logsDB = [];
         let usuarioLogado = null;
 
-        // Inicialização automática dos Seletores de NTE do ecossistema Baiano (1 a 27)
         function inicializarSelectsNteEcosystem() {
             const selects = ['esc-nte', 'user-nte-input'];
             selects.forEach(id => {
@@ -420,7 +419,7 @@
             const filtro = document.getElementById('filtro-processo-busca').value.toUpperCase();
             
             const filtered = processosDB.filter(p => 
-                p && (p.aluno.toUpperCase().includes(filtro) || p.escola.toUpperCase().includes(filtro))
+                p && ((p.aluno || '').toUpperCase().includes(filtro) || (p.escola || '').toUpperCase().includes(filtro))
             );
 
             if(filtered.length === 0) { corpo.innerHTML = "<tr><td colspan='4' class='p-4 text-center text-gray-400'>Nenhum fluxo encontrado.</td></tr>"; return; }
@@ -428,9 +427,9 @@
             filtered.forEach(p => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b text-xs">
-                        <td class="p-2.5 font-bold uppercase">${p.aluno}</td>
-                        <td class="p-2.5 uppercase">${p.escola}</td>
-                        <td class="p-2.5 text-center"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase text-[10px]">${p.etapa}</span></td>
+                        <td class="p-2.5 font-bold uppercase">${p.aluno || ''}</td>
+                        <td class="p-2.5 uppercase">${p.escola || ''}</td>
+                        <td class="p-2.5 text-center"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase text-[10px]">${p.etapa || ''}</span></td>
                         <td class="p-2.5 text-center">
                             <button onclick="editarProcessoClick(${p.id})" class="text-blue-600 hover:text-blue-800 font-bold cursor-pointer mr-2">Editar</button>
                         </td>
@@ -451,9 +450,9 @@
             const p = processosDB.find(item => item.id == id);
             if(!p) return;
             document.getElementById('proc-id').value = p.id;
-            document.getElementById('proc-aluno').value = p.aluno;
-            document.getElementById('proc-escola').value = p.escola;
-            document.getElementById('proc-etapa').value = p.etapa;
+            document.getElementById('proc-aluno').value = p.aluno || '';
+            document.getElementById('proc-escola').value = p.escola || '';
+            document.getElementById('proc-etapa').value = p.etapa || 'Desarquivamento';
             document.getElementById('titulo-modal-processo').innerText = "📝 Atualizar Etapa do Processo";
             document.getElementById('modal-processo').classList.remove('hidden');
         }
@@ -488,7 +487,7 @@
             const filtro = document.getElementById('filtro-escola-busca').value.toUpperCase();
 
             const filtered = escolasDB.filter(e => 
-                e && (e.nome.toUpperCase().includes(filtro) || e.municipio.toUpperCase().includes(filtro))
+                e && ((e.nome || '').toUpperCase().includes(filtro) || (e.municipio || '').toUpperCase().includes(filtro))
             );
 
             document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtered.length} de ${escolasDB.length} escolas`;
@@ -496,8 +495,8 @@
             filtered.forEach(e => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${e.nome} <span class="block text-[10px] text-gray-400">${e.municipio}</span></td>
-                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte}</td>
+                        <td class="p-2.5 font-bold uppercase">${e.nome || ''} <span class="block text-[10px] text-gray-400">${e.municipio || ''}</span></td>
+                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte || ''}</td>
                         <td class="p-2.5 text-center">${e.acervo || 'Não Informado'}</td>
                         <td class="p-2.5 text-center">${e.dependencia || 'Não Informado'}</td>
                         <td class="p-2.5 text-center">
@@ -520,11 +519,11 @@
             const e = escolasDB.find(item => item.id == id);
             if(!e) return;
             document.getElementById('esc-id').value = e.id;
-            document.getElementById('esc-nome').value = e.nome;
-            document.getElementById('esc-municipio').value = e.municipio;
-            document.getElementById('esc-nte').value = e.nte;
-            document.getElementById('esc-acervo').value = e.acervo;
-            document.getElementById('esc-dependencia').value = e.dependencia;
+            document.getElementById('esc-nome').value = e.nome || '';
+            document.getElementById('esc-municipio').value = e.municipio || '';
+            document.getElementById('esc-nte').value = e.nte || 'NTE 01';
+            document.getElementById('esc-acervo').value = e.acervo || 'Recolhido';
+            document.getElementById('esc-dependencia').value = e.dependencia || 'Estadual';
             document.getElementById('titulo-modal-escola').innerText = "📝 Editar Dados da Unidade";
             document.getElementById('modal-escola').classList.remove('hidden');
         }
@@ -561,9 +560,9 @@
             usuariosDB.forEach(u => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${u.nome}</td>
-                        <td class="p-2.5 font-mono text-gray-500">${u.email}</td>
-                        <td class="p-2.5 text-center"><span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">${u.perfil}</span></td>
+                        <td class="p-2.5 font-bold uppercase">${u.nome || ''}</td>
+                        <td class="p-2.5 font-mono text-gray-500">${u.email || ''}</td>
+                        <td class="p-2.5 text-center"><span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">${u.perfil || ''}</span></td>
                         <td class="p-2.5 text-center">
                             <button onclick="editarUsuarioClick(${u.id})" class="text-purple-600 hover:text-purple-800 font-bold cursor-pointer">Editar</button>
                         </td>
@@ -584,11 +583,11 @@
             const u = usuariosDB.find(item => item.id == id);
             if(!u) return;
             document.getElementById('user-id').value = u.id;
-            document.getElementById('user-nome-input').value = u.nome;
-            document.getElementById('user-email-input').value = u.email;
-            document.getElementById('user-senha-input').value = u.senha;
-            document.getElementById('user-nte-input').value = u.nte;
-            document.getElementById('user-perfil-input').value = u.perfil;
+            document.getElementById('user-nome-input').value = u.nome || '';
+            document.getElementById('user-email-input').value = u.email || '';
+            document.getElementById('user-senha-input').value = u.senha || '';
+            document.getElementById('user-nte-input').value = u.nte || 'NTE 01';
+            document.getElementById('user-perfil-input').value = u.perfil || 'Técnico Regional';
             document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
             document.getElementById('modal-usuario').classList.remove('hidden');
         }
@@ -647,6 +646,7 @@
 
                     alert(`Efetuando upload de ${rows.length} escolas. Aguarde a confirmação de conclusão.`);
                     
+                    // 🌟 PROTEÇÃO CONTRA CAMPOS INDEFINIDOS/EM BRANCO NO EXCEL 🌟
                     const formatadas = rows.map(r => ({
                         nome: String(r.nome || r.Nome || '').toUpperCase().trim(),
                         municipio: String(r.municipio || r.Municipio || '').toUpperCase().trim(),
