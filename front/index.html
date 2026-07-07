@@ -831,6 +831,73 @@
 
         function mudarPaginaEscola(dir) {}
         function filtrarPorBusca() {}
+    // BUSCAR PROCESSOS DIRETAMENTE DO SUPABASE
+        async function carregarProcessosDoSupabase() {
+            const { data, error } = await supabase
+                .from('processos')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error("Erro ao buscar processos do Supabase:", error.message);
+                return;
+            }
+
+            globalProcessos = data.map(p => ({
+                id: p.id,
+                aluno: p.aluno_nome,
+                escola: p.escola_nome,
+                documento: p.documento_tipo,
+                etapa: p.etapa_atual,
+                dias: p.dias_decorridos,
+                nte: p.nte
+            }));
+
+            if (typeof carregarEContarProcessosHorizontais === "function") {
+                carregarEContarProcessosHorizontais();
+            } else if (typeof renderizarProcessosFlutuantes === "function") {
+                renderizarProcessosFlutuantes();
+            }
+        }
+
+        // SALVAR NOVO PROCESSO DE ALUNO NO SUPABASE
+        async function salvarNovaSolicitacao(event) {
+            event.preventDefault();
+
+            const nomeAluno = document.getElementById('proc-nome-aluno').value;
+            const documento = document.getElementById('proc-documento').value;
+            const nivel = document.getElementById('proc-nivel').value;
+            const modalidade = document.getElementById('proc-modalidade').value;
+
+            const nomeEscola = typeof escolaSelecionadaParaProcesso !== 'undefined' && escolaSelecionadaParaProcesso ? escolaSelecionadaParaProcesso.nome : "Escola Não Informada";
+            const nteEscola = typeof escolaSelecionadaParaProcesso !== 'undefined' && escolaSelecionadaParaProcesso ? escolaSelecionadaParaProcesso.nte : "NTE 01";
+
+            const novoProcesso = {
+                aluno_nome: nomeAluno.toUpperCase(),
+                escola_nome: nomeEscola,
+                documento_tipo: documento,
+                nivel_oferta: nivel,
+                modalidade: modalidade,
+                etapa_atual: "Desarquivamento",
+                dias_decorridos: 0,
+                nte: nteEscola
+            };
+
+            alert("Abrindo solicitação no banco de dados...");
+
+            const { error } = await supabase
+                .from('processos')
+                .insert([novoProcesso]);
+
+            if (error) {
+                alert("Erro ao criar processo no Supabase: " + error.message);
+                return;
+            }
+
+            alert("Processo aberto com sucesso!");
+            fecharFormularioNovaSolicitacao();
+            await carregarProcessosDoSupabase();
+        }
         function abrirFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.remove('hidden'); }
         function fecharFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.add('hidden'); }
         function abrirModalNovaEscola() { alert('Função de cadastro manual de escola.'); }
@@ -838,11 +905,14 @@
         // INICIALIZAÇÃO AUTOMÁTICA COMPATÍVEL COM SUPABASE
         document.addEventListener("DOMContentLoaded", async () => {
             // Garante que a tela de login inicie visível
-            document.getElementById('tela-login').classList.remove('hidden');
-            document.getElementById('sistema-dashboard').classList.add('hidden');
+            const loginSection = document.getElementById('tela-login');
+            const dashSection = document.getElementById('sistema-dashboard');
+            if(loginSection) loginSection.classList.remove('hidden');
+            if(dashSection) dashSection.classList.add('hidden');
 
-            // Busca as escolas do banco em background imediatamente
+            // Busca as escolas e processos do banco em background imediatamente
             await carregarEscolasDoSupabase();
+            await carregarProcessosDoSupabase();
         });
         });
     </script>
