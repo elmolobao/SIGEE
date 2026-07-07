@@ -269,25 +269,39 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let escolasDB = [];
-        let processosDB = [];
+        let procesosDB = []; // Mantido o fallback estrutural para evitar conflitos de escopo anterior
+        let processosDB = []; 
         let usuariosDB = [];
         let logsDB = [];
         let usuarioLogado = null;
 
+        // Limpando declarações duplicadas e fixando escopo global limpo
+        window.escolasDB = [];
+        window.processosDB = [];
+        window.usuariosDB = [];
+        window.logsDB = [];
+
         async function sincronizarTabelasDoSupabase() {
+            // Tratamentos individuais Try/Catch garantem que o app nunca trave se uma tabela estiver ausente
             try {
                 const { data: esc } = await supabase.from('escolas_sigee').select('*');
-                escolasDB = esc || [];
+                window.escolasDB = esc || [];
+            } catch (e) { console.error("Erro escolas:", e); window.escolasDB = []; }
                 
+            try {
                 const { data: proc } = await supabase.from('processos_sigee').select('*');
-                processosDB = proc || [];
+                window.processosDB = proc || [];
+            } catch (e) { console.error("Erro processos:", e); window.processosDB = []; }
 
+            try {
                 const { data: user } = await supabase.from('usuarios_sigee').select('*');
-                usuariosDB = user || [];
+                window.usuariosDB = user || [];
+            } catch (e) { console.error("Erro usuarios:", e); window.usuariosDB = []; }
 
+            try {
                 const { data: lg } = await supabase.from('logs_sigee').select('*').order('id', { ascending: false });
-                logsDB = lg || [];
-            } catch (err) { console.error("Erro na sincronização:", err); }
+                window.logsDB = lg || [];
+            } catch (e) { console.error("Erro logs:", e); window.logsDB = []; }
         }
 
         async function registrarLogNoSupabase(acaoText) {
@@ -299,7 +313,7 @@
                     email: usuarioLogado.email,
                     acao: acaoText
                 }]);
-            } catch(e) { console.error(e); }
+            } catch(e) { console.warn("Tabela logs_sigee não configurada ou inacessível."); }
         }
 
         async function handleLogin(event) {
@@ -307,32 +321,36 @@
             const emailInput = document.getElementById('login-email').value.trim();
             const senhaInput = document.getElementById('login-senha').value;
 
-            const { data: usuariosencontrados } = await supabase
-                .from('usuarios_sigee')
-                .select('*')
-                .eq('email', emailInput)
-                .eq('senha_hash', senhaInput);
+            try {
+                const { data: usuariosencontrados } = await supabase
+                    .from('usuarios_sigee')
+                    .select('*')
+                    .eq('email', emailInput)
+                    .eq('senha_hash', senhaInput);
 
-            if (usuariosencontrados && usuariosencontrados.length > 0) {
-                const usuario = usuariosencontrados[0];
-                usuarioLogado = usuario;
-                
-                document.getElementById('tela-login').classList.add('hidden');
-                document.getElementById('sistema-dashboard').classList.remove('hidden');
-                document.getElementById('user-nome').innerText = usuario.nome;
-                document.getElementById('user-perfil').innerText = `${usuario.perfil}`;
-                
-                if (usuario.perfil === "Master") {
-                    document.getElementById('menu-usuarios').classList.remove('hidden');
-                    document.getElementById('menu-logs').classList.remove('hidden');
-                    document.getElementById('bloco-importar-planilha').classList.remove('hidden');
+                if (usuariosencontrados && usuariosencontrados.length > 0) {
+                    const usuario = usuariosencontrados[0];
+                    usuarioLogado = usuario;
+                    
+                    document.getElementById('tela-login').classList.add('hidden');
+                    document.getElementById('sistema-dashboard').classList.remove('hidden');
+                    document.getElementById('user-nome').innerText = usuario.nome;
+                    document.getElementById('user-perfil').innerText = `${usuario.perfil}`;
+                    
+                    if (usuario.perfil === "Master") {
+                        document.getElementById('menu-usuarios').classList.remove('hidden');
+                        document.getElementById('menu-logs').classList.remove('hidden');
+                        document.getElementById('bloco-importar-planilha').classList.remove('hidden');
+                    }
+
+                    await sincronizarTabelasDoSupabase();
+                    await registrarLogNoSupabase("Acesso realizado ao painel operacional.");
+                    navegar('painel');
+                } else {
+                    alert("Credenciais inválidas ou operador não localizado.");
                 }
-
-                await sincronizarTabelasDoSupabase();
-                await registrarLogNoSupabase("Acesso realizado ao painel operacional.");
-                navegar('painel');
-            } else {
-                alert("Credenciais inválidas ou operador não localizado.");
+            } catch(err) {
+                alert("Erro de conexão com o Supabase. Verifique suas chaves e tabelas.");
             }
         }
 
@@ -351,10 +369,9 @@
         }
 
         function carregarDadosDashboardReal() {
-            if (!usuarioLogado) return;
-            const escList = escolasDB || [];
-            const procList = processosDB || [];
-            const userList = usuariosDB || [];
+            const escList = window.escolasDB || [];
+            const procList = window.processosDB || [];
+            const userList = window.usuariosDB || [];
 
             document.getElementById('dash-escolas').innerText = escList.length;
             document.getElementById('dash-usuarios').innerText = userList.length;
@@ -378,7 +395,8 @@
             if(!corpo) return; corpo.innerHTML = "";
             const filtro = document.getElementById('filtro-processo-busca').value.toUpperCase();
             
-            const filtered = processosDB.filter(p => 
+            const list = window.processosDB || [];
+            const filtered = list.filter(p => 
                 p && ((p.aluno || '').toUpperCase().includes(filtro) || (p.escola || '').toUpperCase().includes(filtro))
             );
 
@@ -407,7 +425,8 @@
         function fecharModalProcesso() { document.getElementById('modal-processo').classList.add('hidden'); }
 
         function editarProcessoClick(id) {
-            const p = processosDB.find(item => item.id == id);
+            const list = window.processosDB || [];
+            const p = list.find(item => item.id == id);
             if(!p) return;
             document.getElementById('proc-id').value = p.id;
             document.getElementById('proc-aluno').value = p.aluno || '';
@@ -446,11 +465,12 @@
             if(!corpo) return; corpo.innerHTML = "";
             const filtro = document.getElementById('filtro-escola-busca').value.toUpperCase();
 
-            const filtered = escolasDB.filter(e => 
+            const list = window.escolasDB || [];
+            const filtered = list.filter(e => 
                 e && ((e.nome_escola || '').toUpperCase().includes(filtro) || (e.municipio || '').toUpperCase().includes(filtro))
             );
 
-            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtered.length} de ${escolasDB.length} escolas`;
+            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtered.length} de ${list.length} escolas`;
             
             filtered.forEach(e => {
                 corpo.innerHTML += `
@@ -477,7 +497,8 @@
         function fecharModalEscola() { document.getElementById('modal-escola').classList.add('hidden'); }
 
         function editarEscolaClick(id) {
-            const e = escolasDB.find(item => item.id == id);
+            const list = window.escolasDB || [];
+            const e = list.find(item => item.id == id);
             if(!e) return;
             document.getElementById('esc-id').value = e.id;
             document.getElementById('esc-codmec').value = e.cod_mec || '';
@@ -514,7 +535,8 @@
         function carregarListaUsuarios() {
             const corpo = document.getElementById('tabela-usuarios-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            usuariosDB.forEach(u => {
+            const list = window.usuariosDB || [];
+            list.forEach(u => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
                         <td class="p-2.5 font-bold uppercase">${u.nome || ''}</td>
@@ -537,7 +559,8 @@
         function fecharModalUsuario() { document.getElementById('modal-usuario').classList.add('hidden'); }
 
         function editarUsuarioClick(id) {
-            const u = usuariosDB.find(item => item.id == id);
+            const list = window.usuariosDB || [];
+            const u = list.find(item => item.id == id);
             if(!u) return;
             document.getElementById('user-id').value = u.id;
             document.getElementById('user-nome-input').value = u.nome || '';
@@ -576,7 +599,8 @@
         function carregarLogs() {
             const corpo = document.getElementById('tabela-logs-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            logsDB.forEach(l => {
+            const list = window.logsDB || [];
+            list.forEach(l => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b text-xs">
                         <td class="p-2.5 text-gray-400 font-medium">${l.data || ''}</td>
@@ -601,7 +625,6 @@
 
                     alert(`Efetuando upload de ${rows.length} escolas. Aguarde a confirmação de conclusão.`);
                     
-                    // 🌟 MAPEAMENTO ADAPTADO PARA AS COLUNAS REAIS DO SEU BANCO DE DADOS 🌟
                     const formatadas = rows.map(r => ({
                         cod_mec: r.cod_mec || r.CodMec || r.codigo || r.Codigo || null,
                         nome_escola: String(r.nome_escola || r.nome || r.Nome || r.Escola || '').toUpperCase().trim(),
@@ -614,9 +637,7 @@
                         alert("Todas as escolas foram importadas com sucesso!");
                         await registrarLogNoSupabase(`Efetuou carga em lote de ${formatadas.length} escolas via Excel.`);
                         await sincronizarTabelasDoSupabase();
-                        if(!document.getElementById('aba-escolas').classList.contains('hidden')) {
-                            renderizarListaEscolasBufferMemoria();
-                        }
+                        renderizarListaEscolasBufferMemoria();
                     } else {
                         console.error(error);
                         alert("Erro ao inserir dados no Supabase. Verifique os cabeçalhos.");
