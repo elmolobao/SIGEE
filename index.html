@@ -68,7 +68,7 @@
                     </div>
                 </div>
                 <div class="space-y-2 pt-2">
-                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">⚙️ Informações de Processo (Filtrado por abrangência)</h2>
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">⚙️ Informações de Processo</h2>
                     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                         <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-400 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Desarquivamento</p><p id="dash-proc-desarquivamento" class="text-xl font-bold mt-1">0</p></div>
                         <div class="bg-white p-4 rounded-xl shadow-sm border-t-4 border-purple-500 text-center"><p class="text-[10px] text-gray-500 font-bold uppercase">Análise</p><p id="dash-proc-analise" class="text-xl font-bold mt-1">0</p></div>
@@ -85,34 +85,16 @@
             <section id="aba-processos" class="hidden space-y-4">
                 <div class="flex justify-between items-center bg-white p-4 rounded-xl border shadow-xs">
                     <div><h2 class="text-lg font-bold text-blue-900">Gerenciamento de Fluxos Dinâmicos</h2></div>
-                    <button onclick="abrirFormularioNovaSolicitacao()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-lg text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition">➕ 📥 Nova Solicitação</button>
-                </div>
-                <div class="bg-white p-3 rounded-xl border shadow-sm space-y-2">
-                    <div class="flex flex-wrap items-center gap-1.5 w-full">
-                        <button onclick="filtrarProcessosPorEtapa('TODOS')" id="btn-fase-todos" class="px-2.5 py-1.5 bg-blue-900 text-white rounded-lg font-bold text-[11px] cursor-pointer transition">📋 Todos (<span id="count-horiz-todos">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Desarquivamento')" id="btn-fase-desarquivamento" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">📂 Desarq (<span id="count-horiz-desarquivamento">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Análise')" id="btn-fase-analise" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🔍 Análise (<span id="count-horiz-analise">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Pendência')" id="btn-fase-pendencia" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">⚠️ Pend (<span id="count-horiz-pendencia">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Digitação')" id="btn-fase-digitacao" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">⌨️ Digit (<span id="count-horiz-digitacao">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Conferência')" id="btn-fase-conferencia" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🧐 Conf (<span id="count-horiz-conferencia">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Assinatura')" id="btn-fase-assinatura" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">✍️ Assin (<span id="count-horiz-assinatura">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Aguardando Retirada')" id="btn-fase-aguardando" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">🎁 Aguard (<span id="count-horiz-aguardando">0</span>)</button>
-                        <button onclick="filtrarProcessosPorEtapa('Retirado')" id="btn-fase-retirado" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold text-[11px] border cursor-pointer transition">✅ Retirado (<span id="count-horiz-retirado">0</span>)</button>
-                    </div>
                 </div>
                 <div class="space-y-2">
-                    <div class="bg-white p-2 border rounded-xl shadow-xs">
-                        <input type="text" id="busca-proc-nome" placeholder="🔍 Filtrar processos por nome do aluno..." oninput="renderizarProcessosFlutuantes()" class="w-full p-2 bg-gray-50 text-xs border rounded-lg focus:outline-none font-medium">
-                    </div>
                     <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
                         <table class="w-full text-left border-collapse table-fixed text-[11px]">
                             <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
                                 <tr>
-                                    <th class="p-2.5 w-[20%]">Aluno / Doc</th>
-                                    <th class="p-2.5 w-[25%]">Instituição / NTE</th>
-                                    <th class="p-2.5 w-[12%] text-center">Etapa Atual</th>
-                                    <th class="p-2.5 w-[15%] text-center">Tempo na Etapa</th>
-                                    <th class="p-2.5 w-[28%] text-center">Ações Operacionais</th>
+                                    <th class="p-2.5 w-[25%]">Aluno</th>
+                                    <th class="p-2.5 w-[35%]">Instituição</th>
+                                    <th class="p-2.5 w-[20%] text-center">Etapa Atual</th>
+                                    <th class="p-2.5 w-[20%] text-center">Tempo</th>
                                 </tr>
                             </thead>
                             <tbody id="tabela-processos-corpo" class="divide-y divide-gray-100"></tbody>
@@ -122,17 +104,6 @@
             </section>
 
             <section id="aba-escolas" class="hidden space-y-6">
-                <div class="bg-white p-4 rounded-xl border shadow-xs flex flex-wrap items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <button onclick="abrirModalNovaEscola()" class="bg-blue-900 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm hover:bg-blue-950 transition cursor-pointer">➕ Cadastrar Nova Escola</button>
-                        <label id="btn-importar-dados-master" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm cursor-pointer transition">
-                            📥 Importar Dados (Excel)
-                            <input type="file" id="input-importar-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="processarImportacaoOtimizada(event)">
-                        </label>
-                    </div>
-                    <div id="info-quantidade-escolas-carregadas" class="text-xs font-semibold text-gray-500">Exibindo: 0 registros</div>
-                </div>
-                
                 <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
                     <table class="w-full text-left border-collapse table-fixed text-[11px]">
                         <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
@@ -141,7 +112,6 @@
                                 <th class="p-2.5 text-center">NTE</th>
                                 <th class="p-2.5 text-center">Acervo</th>
                                 <th class="p-2.5 text-center">Dependência</th>
-                                <th class="p-2.5 text-center">Código INEP</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-escolas-corpo" class="divide-y divide-gray-100"></tbody>
@@ -151,17 +121,8 @@
 
             <section id="aba-usuarios" class="hidden space-y-4">
                 <div class="bg-white rounded-xl border shadow-sm p-4">
-                    <h2 class="text-lg font-bold text-blue-900 mb-4">Controle de Técnicos e Perfis</h2>
+                    <h2 class="text-lg font-bold text-blue-900 mb-4">Controle de Técnicos</h2>
                     <table class="w-full text-left border-collapse text-[11px]">
-                        <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
-                            <tr>
-                                <th class="p-2.5">Nome</th>
-                                <th class="p-2.5">E-mail</th>
-                                <th class="p-2.5 text-center">NTE</th>
-                                <th class="p-2.5 text-center">Perfil</th>
-                                <th class="p-2.5 text-center">Status</th>
-                            </tr>
-                        </thead>
                         <tbody id="tabela-usuarios-corpo" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
@@ -169,16 +130,7 @@
 
             <section id="aba-logs" class="hidden space-y-4">
                 <div class="bg-white rounded-xl border shadow-sm p-4">
-                    <h2 class="text-lg font-bold text-blue-900 mb-4">Registros de Ações do Sistema</h2>
                     <table class="w-full text-left border-collapse text-[11px]">
-                        <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
-                            <tr>
-                                <th class="p-2.5">Data/Hora</th>
-                                <th class="p-2.5">Operador</th>
-                                <th class="p-2.5">E-mail</th>
-                                <th class="p-2.5">Ação Executada</th>
-                            </tr>
-                        </thead>
                         <tbody id="tabela-logs-corpo" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
@@ -189,21 +141,25 @@
     <script>
         // CONFIGURAÇÃO CENTRALIZADA DO SUPABASE
         const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNreGJ2c2Zqc2tuYmdwZnB4Y3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg1OTU1OTksImV4cCI6MjA1NDE1MTU5OX0.YOUR_ACTUAL_KEY_HERE"; // Substitua pela sua chave completa obtida no painel
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // 🛑 ATENÇÃO: SUBSTITUA O TEXTO ABAIXO PELA SUA CHAVE COMPLETA DO SUPABASE
+        const SUPABASE_KEY = "SUA_CHAVE_ANON_PUBLIC_AQUI"; 
 
-        // Buffers locais alimentados dinamicamente pela nuvem (Substituem os vetores estáticos)
+        let supabase = null;
+        try {
+            if (SUPABASE_KEY !== "SUA_CHAVE_ANON_PUBLIC_AQUI") {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch(e) { console.error("Chave inválida detetada."); }
+
         let escolasDB = [];
         let processosDB = [];
         let usuariosDB = [];
         let logsDB = [];
-        
         let usuarioLogado = null;
-        let etapaFiltroAtual = "TODOS";
-        const ETAPAS_FLUXO_OFICIAL = ["Desarquivamento", "Análise", "Pendência", "Digitação", "Conferência", "Assinatura", "Aguardando Retirada", "Retirado"];
 
-        // Sincronização em tempo real das tabelas do Supabase antes de carregar telas
         async function sincronizarTabelasDoSupabase() {
+            if (!supabase) return;
             try {
                 const { data: esc } = await supabase.from('escolas_sigee').select('*');
                 if (esc) escolasDB = esc;
@@ -213,27 +169,24 @@
 
                 const { data: user } = await supabase.from('usuarios_sigee').select('*');
                 if (user) usuariosDB = user;
-
-                const { data: lg } = await supabase.from('logs_sigee').select('*').order('id', { ascending: false });
-                if (lg) logsDB = lg;
-            } catch (err) {
-                console.error("Erro na sincronização ativa de dados:", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
-        // FLUXO DE LOGIN INTEGRADO À TABELA PERSONALIZADA 'usuarios_sigee'
         async function handleLogin(event) {
             event.preventDefault();
             const email = document.getElementById('login-email').value.trim();
             const senha = document.getElementById('login-senha').value;
 
-            // Busca reativa direto na nuvem
+            if (!supabase) {
+                alert("Erro: Configure a sua chave SUPABASE_KEY correta no arquivo de código antes de tentar logar!");
+                return;
+            }
+
             const { data: usuario, error } = await supabase
                 .from('usuarios_sigee')
                 .select('*')
                 .eq('email', email)
                 .eq('senha', senha)
-                .eq('ativo', true)
                 .single();
 
             if (usuario) {
@@ -243,30 +196,16 @@
                 document.getElementById('user-nome').innerText = usuario.nome;
                 document.getElementById('user-perfil').innerText = `${usuario.perfil} | ${usuario.nte}`;
                 
-                const btnImportar = document.getElementById('btn-importar-dados-master');
                 if (usuario.perfil === "Master") {
-                    if(btnImportar) btnImportar.classList.remove('hidden');
                     document.getElementById('menu-usuarios').classList.remove('hidden');
                     document.getElementById('menu-logs').classList.remove('hidden');
-                } else {
-                    if(btnImportar) btnImportar.classList.add('hidden');
-                    document.getElementById('menu-usuarios').classList.add('hidden');
-                    document.getElementById('menu-logs').classList.add('hidden');
                 }
 
                 await sincronizarTabelasDoSupabase();
-                await registrarLog("Acesso realizado ao painel operacional.");
                 navegar('painel');
             } else {
-                alert("Credenciais inválidas ou operador desativado no escopo regional.");
+                alert("Acesso negado. Verifique as credenciais no Supabase.");
             }
-        }
-
-        async function registrarLog(acao) {
-            if(!usuarioLogado) return;
-            const novoLog = { nome: usuarioLogado.nome, email: usuarioLogado.email, acao: acao, data: new Date().toLocaleString('pt-BR') };
-            await supabase.from('logs_sigee').insert([novoLog]);
-            logsDB.unshift(novoLog);
         }
 
         function navegar(aba) {
@@ -279,130 +218,49 @@
             sincronizarTabelasDoSupabase().then(() => {
                 if (aba === 'painel') { document.getElementById('aba-painel').classList.remove('hidden'); carregarDadosDashboardReal(); } 
                 if (aba === 'escolas') { document.getElementById('aba-escolas').classList.remove('hidden'); renderizarListaEscolasBufferMemoria(); } 
-                if (aba === 'processos') { document.getElementById('aba-processos').classList.remove('hidden'); carregarEContarProcessosHorizontais(); }
-                if (aba === 'usuarios') { document.getElementById('aba-usuarios').classList.remove('hidden'); carregarListaUsuarios(); }
-                if (aba === 'logs') { document.getElementById('aba-logs').classList.remove('hidden'); carregarLogs(); }
+                if (aba === 'processos') { document.getElementById('aba-processos').classList.remove('hidden'); renderizarProcessosFlutuantes(); }
             });
         }
 
         function carregarDadosDashboardReal() {
-            let escolasVisiveis = (usuarioLogado.perfil === "Master") ? escolasDB : escolasDB.filter(e => e.nte?.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte?.toUpperCase().replace(/\s/g,''));
-            let procVisiveis = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte?.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte?.toUpperCase().replace(/\s/g,''));
-
-            document.getElementById('dash-escolas').innerText = escolasVisiveis.length;
-            document.getElementById('dash-acervos').innerText = escolasVisiveis.filter(e => e.acervo === "Recolhido").length;
-            document.getElementById('dash-estaduais').innerText = escolasVisiveis.filter(e => e.dependencia === "Estadual").length;
-            document.getElementById('dash-municipios').innerText = [...new Set(escolasVisiveis.map(e => e.municipio))].length;
+            document.getElementById('dash-escolas').innerText = escolasDB.length;
             document.getElementById('dash-usuarios').innerText = usuariosDB.length;
-            
-            document.getElementById('dash-proc-desarquivamento').innerText = procVisiveis.filter(p => p.etapa === "Desarquivamento").length;
-            document.getElementById('dash-proc-analise').innerText = procVisiveis.filter(p => p.etapa === "Análise").length;
-            document.getElementById('dash-proc-pendencia').innerText = procVisiveis.filter(p => p.etapa === "Pendência").length;
-            document.getElementById('dash-proc-digitacao').innerText = procVisiveis.filter(p => p.etapa === "Digitação").length;
-            document.getElementById('dash-proc-conferencia').innerText = procVisiveis.filter(p => p.etapa === "Conferência").length;
-            document.getElementById('dash-proc-assinatura').innerText = procVisiveis.filter(p => p.etapa === "Assinatura").length;
-            document.getElementById('dash-proc-aguardando').innerText = procVisiveis.filter(p => p.etapa === "Aguardando Retirada").length;
-            document.getElementById('dash-proc-retirado').innerText = procVisiveis.filter(p => p.etapa === "Retirado").length;
+            document.getElementById('dash-acervos').innerText = escolasDB.filter(e => e.acervo === "Recolhido").length;
         }
 
         function renderizarListaEscolasBufferMemoria() {
             const corpo = document.getElementById('tabela-escolas-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            let filtradas = (usuarioLogado.perfil === "Master") ? escolasDB : escolasDB.filter(e => e.nte?.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte?.toUpperCase().replace(/\s/g,''));
-            
-            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtradas.length} registros`;
-            
-            filtradas.forEach(e => {
+            escolasDB.forEach(e => {
                 corpo.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b border-gray-100">
-                        <td class="p-2.5 font-bold text-gray-900 uppercase">${e.nome} <span class="block text-[10px] text-gray-400 font-medium">${e.municipio}</span></td>
-                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte}</td>
-                        <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.acervo === 'Recolhido' ? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}">${e.acervo}</span></td>
-                        <td class="p-2.5 text-center font-medium">${e.dependencia}</td>
-                        <td class="p-2.5 text-center font-mono text-gray-500">${e.inep || '---'}</td>
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="p-2.5 font-bold uppercase">${e.nome} <span class="block text-[10px] text-gray-400">${e.municipio}</span></td>
+                        <td class="p-2.5 text-center font-semibold">${e.nte}</td>
+                        <td class="p-2.5 text-center">${e.acervo}</td>
+                        <td class="p-2.5 text-center">${e.dependencia}</td>
                     </tr>
                 `;
             });
         }
-
-        // CONTROLADOR DE PROCESSOS REGIONAIS E MONITORAÇÃO DE FLUXO
-        function carregarEContarProcessosHorizontais() {
-            let visiveis = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte?.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte?.toUpperCase().replace(/\s/g,''));
-            
-            document.getElementById('count-horiz-todos').innerText = visiveis.length;
-            document.getElementById('count-horiz-desarquivamento').innerText = visiveis.filter(p => p.etapa === "Desarquivamento").length;
-            document.getElementById('count-horiz-analise').innerText = visiveis.filter(p => p.etapa === "Análise").length;
-            document.getElementById('count-horiz-pendencia').innerText = visiveis.filter(p => p.etapa === "Pendência").length;
-            document.getElementById('count-horiz-digitacao').innerText = visiveis.filter(p => p.etapa === "Digitação").length;
-            document.getElementById('count-horiz-conferencia').innerText = visiveis.filter(p => p.etapa === "Conferência").length;
-            document.getElementById('count-horiz-assinatura').innerText = visiveis.filter(p => p.etapa === "Assinatura").length;
-            document.getElementById('count-horiz-aguardando').innerText = visiveis.filter(p => p.etapa === "Aguardando Retirada").length;
-            document.getElementById('count-horiz-retirado').innerText = visiveis.filter(p => p.etapa === "Retirado").length;
-            
-            renderizarProcessosFlutuantes();
-        }
-
-        function filtrarProcessosPorEtapa(etapa) { etapaFiltroAtual = etapa; renderizarProcessosFlutuantes(); }
 
         function renderizarProcessosFlutuantes() {
             const corpo = document.getElementById('tabela-processos-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            
-            let filtrados = (usuarioLogado.perfil === "Master") ? processosDB : processosDB.filter(p => p.nte?.toUpperCase().replace(/\s/g,'') === usuarioLogado.nte?.toUpperCase().replace(/\s/g,''));
-            if (etapaFiltroAtual !== 'TODOS') filtrados = filtrados.filter(p => p.etapa === etapaFiltroAtual);
-
-            const busca = document.getElementById('busca-proc-nome').value.toLowerCase();
-            if (busca) filtrados = filtrados.filter(p => p.aluno.toLowerCase().includes(busca));
-
-            filtrados.forEach(p => {
-                let diasContados = calcularDiasApartirDeDataString(p.data_etapa_atual);
-                let botaoFluxoContextual = "";
-                let badgeAlertaPrazo = "";
-
-                if (p.etapa === "Desarquivamento") {
-                    botaoFluxoContextual = `<button onclick="alert('Funcionalidade de avanço operacional')" class="bg-gray-800 text-white font-bold px-2 py-1 rounded text-[10px] cursor-pointer">📥 Avançar Etapa</button>`;
-                    if (diasContados >= 44) badgeAlertaPrazo = `<span class="block bg-red-600 text-white text-[8px] font-extrabold px-1 py-0.5 rounded uppercase mt-0.5 animate-pulse">⚠️ CONFIRMAR DADOS</span>`;
-                    else if (diasContados >= 37) badgeAlertaPrazo = `<span class="block bg-orange-500 text-white text-[8px] font-extrabold px-1 py-0.5 rounded uppercase mt-0.5">⚠️ URGÊNCIA</span>`;
-                } else {
-                    botaoFluxoContextual = `<span class="text-gray-400 italic text-[10px]">${p.etapa}</span>`;
-                }
-
+            processosDB.forEach(p => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${p.aluno} <span class="block text-[10px] text-blue-800">${p.documento}</span></td>
-                        <td class="p-2.5 font-medium">${p.escola} <span class="block text-[9px] text-gray-400">${p.nte}</span></td>
-                        <td class="p-2.5 text-center"><span class="px-1.5 py-0.5 bg-amber-100 text-amber-950 font-bold rounded text-[9px] uppercase">${p.etapa}</span>${badgeAlertaPrazo}</td>
-                        <td class="p-2.5 text-center text-xs font-bold">${diasContados} dias</td>
-                        <td class="p-2.5 text-center">${botaoFluxoContextual}</td>
+                        <td class="p-2.5 font-bold uppercase">${p.aluno}</td>
+                        <td class="p-2.5 font-medium">${p.escola}</td>
+                        <td class="p-2.5 text-center uppercase font-bold">${p.etapa}</td>
+                        <td class="p-2.5 text-center">Ativo</td>
                     </tr>
                 `;
             });
         }
 
-        function calcularDiasApartirDeDataString(dataString) {
-            if(!dataString) return 0;
-            try {
-                const partes = dataString.split("/");
-                const dataInicio = new Date(partes[2], partes[1] - 1, partes[0]);
-                return Math.max(0, Math.floor((new Date().getTime() - dataInicio.getTime()) / (1000 * 3600 * 24)));
-            } catch(e) { return 0; }
-        }
-
-        function carregarListaUsuarios() {
-            const corpo = document.getElementById('tabela-usuarios-corpo'); if(!corpo) return; corpo.innerHTML = "";
-            usuariosDB.forEach(u => {
-                corpo.innerHTML += `<tr class="hover:bg-gray-50 border-b"><td class="p-2.5 font-bold">${u.nome}</td><td class="p-2.5 font-mono">${u.email}</td><td class="p-2.5 text-center font-bold">${u.nte}</td><td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-[10px] bg-purple-100 text-purple-800 font-bold">${u.perfil}</span></td><td class="p-2.5 text-center font-bold ${u.ativo?'text-emerald-600':'text-red-600'}">${u.ativo?'ATIVO':'INATIVO'}</td></tr>`;
-            });
-        }
-
-        function carregarLogs() {
-            const corpo = document.getElementById('tabela-logs-corpo'); if(!corpo) return; corpo.innerHTML = "";
-            logsDB.forEach(l => {
-                corpo.innerHTML += `<tr class="hover:bg-gray-50 border-b"><td class="p-4 text-xs font-semibold text-gray-500">${l.data}</td><td class="p-4 font-bold text-gray-800">${l.nome}</td><td class="p-4 text-xs font-mono">${l.email}</td><td class="p-4 font-bold text-blue-900">${l.acao}</td></tr>`;
-            });
-        }
-
-        function logout() { usuarioLogado = null; document.getElementById('sistema-dashboard').classList.add('hidden'); document.getElementById('tela-login').classList.remove('hidden'); }
+        function logout() { location.reload(); }
     </script>
 </body>
 </html>
+</html>
+
