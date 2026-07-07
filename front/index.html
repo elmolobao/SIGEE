@@ -6,6 +6,8 @@
     <title>SIGEE - Sistema de Gestão de Escolas Extintas (SEC/BA)</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 font-normal">
 
@@ -526,10 +528,12 @@
             </form>
         </div>
     </div>
-
-    <script>
-        // CONFIGURAÇÕES GERAIS E BASE URL DA API
-        const BASE_URL = "https://solucoessecba.com.br/api"; 
+<script>
+        // CONFIGURAÇÕES GERAIS E CONEXÃO COM O BANCO DE DADOS SUPABASE
+        const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co"; 
+        const SUPABASE_ANON_KEY = "https://ckxbvsfjsknbgpfpxcyy.supabase.co/rest/v1/";
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
         let usuarioLogado = null;
 
         // BUFFER DE MEMÓRIA DINÂMICO
@@ -723,7 +727,32 @@
             const corpo = document.getElementById('tabela-processos-corpo');
             corpo.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-400 font-medium">Nenhum processo em tramitação no momento.</td></tr>`;
         }
+// BUSCAR DADOS DA TABELA ESCOLAS DO SUPABASE
+        async function carregarEscolasDoSupabase() {
+            const { data, error } = await supabase
+                .from('escolas')
+                .select('*')
+                .order('nome', { ascending: true });
 
+            if (error) {
+                console.error("Erro ao carregar escolas do Supabase:", error.message);
+                return;
+            }
+
+            // Transforma o formato de colunas do banco no formato que o seu HTML usa
+            globalEscolas = data.map(e => ({
+                codMec: e.cod_mec,
+                nome: e.nome,
+                municipio: e.municipio,
+                nte: e.nte,
+                dep: e.dependencia_adm,
+                situacao: e.situacao_funcional,
+                acervo: e.possui_acervo
+            }));
+
+            // Chama a função existente para desenhar a tabela na tela
+            renderizarListaEscolasBufferMemoria();
+        }
         function renderizarListaEscolasBufferMemoria() {
             const corpo = document.getElementById('tabela-escolas-corpo');
             if(globalEscolas.length === 0) {
@@ -746,25 +775,56 @@
             document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${globalEscolas.length} registros`;
         }
 
+       // IMPORTAÇÃO DE PLANILHA SALVANDO DIRETAMENTE NO SUPABASE
         function processarImportacaoExcelOtimizada(event) {
             const file = event.target.files[0];
-            if(!file) return;
+            if (!file) return;
+
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
-                
-                globalEscolas = json.map(row => ({
-                    nome: row["Nome da Escola"] || row["Nome"] || "Escola Não Identificada",
-                    municipio: row["Município"] || row["Municipio"] || "Não Informado",
-                    dep: row["Dependência Administrativa"] || row["Dep"] || "Estadual",
-                    situacao: row["Situação Funcional"] || "Extinta",
-                    acervo: row["Acervo"] || "Sim"
-                }));
-                renderizarListaEscolasBufferMemoria();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (json.length === 0) {
+                        alert("A planilha importada está vazia.");
+                        return;
+                    }
+
+                    // Mapeia as colunas da planilha para o padrão exato da tabela no Supabase
+                    const escolasParaInserir = json.map((row, i) => ({
+                        cod_mec: row["Cód MEC"] || row["Codigo"] || String(Date.now() + i),
+                        nome: String(row["Nome da Escola"] || row["Nome"] || "Escola Sem Nome").toUpperCase(),
+                        municipio: row["Município"] || row["Municipio"] || "Não Informado",
+                        nte: row["NTE"] ? String(row["NTE"]) : "NTE 01",
+                        dependencia_adm: row["Dependência Administrativa"] || row["Dep"] || "Estadual",
+                        situacao_funcional: row["Situação Funcional"] || "Extinta",
+                        possui_acervo: row["Acervo"] || "Sim"
+                    }));
+
+                    alert(`Processando a importação de ${escolasParaInserir.length} escolas. Aguarde...`);
+
+                    // Faz o upload massivo para a tabela 'escolas' do Supabase
+                    const { error } = await supabase
+                        .from('escolas')
+                        .insert(escolasParaInserir);
+
+                    if (error) {
+                        throw new Error(error.message);
+                    }
+
+                    alert(`Sucesso absoluto! ${escolasParaInserir.length} escolas foram gravadas permanentemente no Supabase.`);
+                    
+                    // Recarrega o catálogo atualizado puxando direto do banco de dados
+                    await carregarEscolasDoSupabase();
+
+                } catch (err) {
+                    alert("Erro ao salvar dados no Supabase: " + err.message);
+                    console.error("Erro na importação:", err);
+                }
             };
             reader.readAsArrayBuffer(file);
         }
@@ -775,12 +835,15 @@
         function fecharFormularioNovaSolicitacao() { document.getElementById('modal-nova-solicitacao-container').classList.add('hidden'); }
         function abrirModalNovaEscola() { alert('Função de cadastro manual de escola.'); }
 
-        document.addEventListener("DOMContentLoaded", () => {
-            carregarGruposNtes().catch(err => console.error("Erro inicialização:", err));
-            const loginSection = document.getElementById('tela-login');
-            const dashSection = document.getElementById('sistema-dashboard');
-            if(loginSection) loginSection.classList.remove('hidden');
-            if(dashSection) dashSection.classList.add('hidden');
+        // INICIALIZAÇÃO AUTOMÁTICA COMPATÍVEL COM SUPABASE
+        document.addEventListener("DOMContentLoaded", async () => {
+            // Garante que a tela de login inicie visível
+            document.getElementById('tela-login').classList.remove('hidden');
+            document.getElementById('sistema-dashboard').classList.add('hidden');
+
+            // Busca as escolas do banco em background imediatamente
+            await carregarEscolasDoSupabase();
+        });
         });
     </script>
 </body>
