@@ -89,16 +89,21 @@
             </section>
 
             <section id="aba-processos" class="hidden space-y-4">
-                <div class="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-gray-200 gap-4">
                     <h2 class="text-lg font-bold text-blue-900">Gerenciamento de Fluxos Dinâmicos</h2>
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <input type="text" id="filtro-processo-busca" oninput="renderizarProcessosFlutuantes()" placeholder="Buscar aluno ou escola..." class="px-3 py-1.5 border text-xs rounded-lg focus:outline-none placeholder:text-gray-400 flex-1 sm:w-64">
+                        <button onclick="abrirModalProcesso()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow transition cursor-pointer">+ Novo Processo</button>
+                    </div>
                 </div>
-                <div class="bg-white p-3 rounded-xl border shadow-sm">
+                <div class="bg-white p-3 rounded-xl border shadow-sm overflow-hidden">
                     <table class="w-full text-left border-collapse text-[11px]">
                         <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
                             <tr>
                                 <th class="p-2.5">Aluno</th>
                                 <th class="p-2.5">Instituição</th>
                                 <th class="p-2.5 text-center">Etapa Atual</th>
+                                <th class="p-2.5 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-processos-corpo" class="divide-y divide-gray-100"></tbody>
@@ -106,9 +111,13 @@
                 </div>
             </section>
 
-            <section id="aba-escolas" class="hidden space-y-6">
-                <div class="bg-white p-4 rounded-xl border shadow-sm">
+            <section id="aba-escolas" class="hidden space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-gray-200 gap-4">
                     <div id="info-quantidade-escolas-carregadas" class="text-xs font-bold text-gray-500">Buscando escolas...</div>
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <input type="text" id="filtro-escola-busca" oninput="renderizarListaEscolasBufferMemoria()" placeholder="Buscar escola ou município..." class="px-3 py-1.5 border text-xs rounded-lg focus:outline-none placeholder:text-gray-400 flex-1 sm:w-64">
+                        <button onclick="abrirModalEscola()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow transition cursor-pointer">+ Cadastrar Escola</button>
+                    </div>
                 </div>
                 <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
                     <table class="w-full text-left border-collapse text-[11px]">
@@ -118,6 +127,7 @@
                                 <th class="p-2.5 text-center">NTE</th>
                                 <th class="p-2.5 text-center">Acervo</th>
                                 <th class="p-2.5 text-center">Dependência</th>
+                                <th class="p-2.5 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-escolas-corpo" class="divide-y divide-gray-100"></tbody>
@@ -127,13 +137,17 @@
 
             <section id="aba-usuarios" class="hidden space-y-4">
                 <div class="bg-white rounded-xl border p-4">
-                    <h2 class="text-lg font-bold text-blue-900 mb-4">Controle de Técnicos</h2>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-blue-900">Controle de Técnicos</h2>
+                        <button onclick="abrirModalUsuario()" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow transition cursor-pointer">+ Novo Técnico</button>
+                    </div>
                     <table class="w-full text-left border-collapse text-[11px]">
                         <thead class="bg-gray-100 font-bold border-b text-gray-600 uppercase">
                             <tr>
                                 <th class="p-2.5">Nome</th>
                                 <th class="p-2.5">E-mail</th>
                                 <th class="p-2.5 text-center">Perfil</th>
+                                <th class="p-2.5 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-usuarios-corpo" class="divide-y divide-gray-100"></tbody>
@@ -159,6 +173,117 @@
         </main>
     </div>
 
+    <div id="modal-processo" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 id="titulo-modal-processo" class="text-base font-bold text-blue-900 border-b pb-2">📁 Novo Fluxo de Processo</h3>
+            <form id="form-processo" onsubmit="salvarProcessoFormulario(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="proc-id">
+                <div>
+                    <label class="block font-semibold mb-1">Nome Completo do Aluno</label>
+                    <input type="text" id="proc-aluno" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Instituição de Ensino Extinta</label>
+                    <input type="text" id="proc-escola" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Etapa Operacional Atual</label>
+                    <select id="proc-etapa" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
+                        <option value="Desarquivamento">Desarquivamento</option>
+                        <option value="Análise">Análise</option>
+                        <option value="Pendência">Pendência</option>
+                        <option value="Digitação">Digitação</option>
+                        <option value="Conferência">Conferência</option>
+                        <option value="Assinatura">Assinatura</option>
+                        <option value="Aguardando Retirada">Aguardando Retirada</option>
+                        <option value="Retirado">Retirado</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t">
+                    <button type="button" onclick="fecharModalProcesso()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition cursor-pointer">Salvar Dados</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-escola" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 id="titulo-modal-escola" class="text-base font-bold text-blue-900 border-b pb-2">🗄️ Cadastro de Unidade Escolar</h3>
+            <form id="form-escola" onsubmit="salvarEscolaFormulario(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="esc-id">
+                <div>
+                    <label class="block font-semibold mb-1">Nome da Escola</label>
+                    <input type="text" id="esc-nome" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Município</label>
+                    <input type="text" id="esc-municipio" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">NTE Coordenador</label>
+                    <select id="esc-nte" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white"></select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Status de Recolhimento do Acervo</label>
+                    <select id="esc-acervo" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
+                        <option value="Recolhido">Recolhido</option>
+                        <option value="Sob Inspeção">Sob Inspeção</option>
+                        <option value="Não Localizado">Não Localizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Dependência Administrativa</label>
+                    <select id="esc-dependencia" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
+                        <option value="Estadual">Estadual</option>
+                        <option value="Municipal">Municipal</option>
+                        <option value="Privada">Privada</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t">
+                    <button type="button" onclick="fecharModalEscola()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition cursor-pointer">Salvar Unidade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-usuario" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 id="titulo-modal-usuario" class="text-base font-bold text-purple-900 border-b pb-2">👥 Cadastro de Operador Regional</h3>
+            <form id="form-usuario" onsubmit="salvarUsuarioFormulario(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="user-id">
+                <div>
+                    <label class="block font-semibold mb-1">Nome Completo</label>
+                    <input type="text" id="user-nome-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">E-mail Corporativo (@enova)</label>
+                    <input type="email" id="user-email-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Senha de Acesso</label>
+                    <input type="password" id="user-senha-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Lotação Regional (NTE)</label>
+                    <select id="user-nte-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white"></select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Nível de Perfil Técnico</label>
+                    <select id="user-perfil-input" required class="w-full px-3 py-2 border rounded-lg focus:outline-none bg-white">
+                        <option value="Técnico Regional">Técnico Regional</option>
+                        <option value="Master">Master (Gestor Central)</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t">
+                    <button type="button" onclick="fecharModalUsuario()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition cursor-pointer">Salvar Técnico</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const SUPABASE_URL = "https://ckxbvsfjsknbgpfpxcyy.supabase.co";
         // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNreGJ2c2Zqc2tuYmdwZnB4Y3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTc4MjUsImV4cCI6MjA5ODc3MzgyNX0.ecJr_MYR9GPnaYMZ3V6kgeed7uGtg-vQ4THpdwAtTxk
@@ -172,6 +297,24 @@
         let logsDB = [];
         let usuarioLogado = null;
 
+        // Inicialização automática dos Seletores de NTE do ecossistema Baiano (1 a 27)
+        function inicializarSelectsNteEcosystem() {
+            const selects = ['esc-nte', 'user-nte-input'];
+            selects.forEach(id => {
+                const select = document.getElementById(id);
+                if (select) {
+                    select.innerHTML = "";
+                    for (let i = 1; i <= 27; i++) {
+                        select.innerHTML += `<option value="NTE ${String(i).padStart(2, '0')}">NTE ${String(i).padStart(2, '0')}</option>`;
+                    }
+                }
+            });
+        }
+
+        window.onload = function() {
+            inicializarSelectsNteEcosystem();
+        };
+
         async function sincronizarTabelasDoSupabase() {
             try {
                 const { data: esc } = await supabase.from('escolas_sigee').select('*');
@@ -183,9 +326,9 @@
                 const { data: user } = await supabase.from('usuarios_sigee').select('*');
                 usuariosDB = user || [];
 
-                const { data: lg } = await supabase.from('logs_sigee').select('*');
+                const { data: lg } = await supabase.from('logs_sigee').select('*').order('id', { ascending: false });
                 logsDB = lg || [];
-            } catch (err) { console.error("Erro na carga ativa:", err); }
+            } catch (err) { console.error("Erro na sincronização:", err); }
         }
 
         async function registrarLogNoSupabase(acaoText) {
@@ -205,7 +348,7 @@
             const emailInput = document.getElementById('login-email').value.trim();
             const senhaInput = document.getElementById('login-senha').value;
 
-            const { data: usuariosencontrados, error } = await supabase
+            const { data: usuariosencontrados } = await supabase
                 .from('usuarios_sigee')
                 .select('*')
                 .eq('email', emailInput)
@@ -226,7 +369,6 @@
                     document.getElementById('bloco-importar-planilha').classList.remove('hidden');
                 }
 
-                // 🌟 Sincroniza primeiro, espera baixar tudo e só depois navega abrindo os dados
                 await sincronizarTabelasDoSupabase();
                 await registrarLogNoSupabase("Acesso realizado ao painel operacional.");
                 navegar('painel');
@@ -251,8 +393,6 @@
 
         function carregarDadosDashboardReal() {
             if (!usuarioLogado) return;
-            
-            // Garantia de proteção com "|| []" caso as tabelas estejam carregando
             const escList = escolasDB || [];
             const procList = processosDB || [];
             const userList = usuariosDB || [];
@@ -273,60 +413,216 @@
             document.getElementById('dash-proc-retirado').innerText = procList.filter(p => p && p.etapa === "Retirado").length;
         }
 
-        function renderizarListaEscolasBufferMemoria() {
-            const corpo = document.getElementById('tabela-escolas-corpo');
-            if(!corpo) return; corpo.innerHTML = "";
-            const escList = escolasDB || [];
-            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${escList.length} escolas catalogadas`;
-            escList.forEach(e => {
-                if(!e) return;
-                corpo.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${e.nome || ''} <span class="block text-[10px] text-gray-400">${e.municipio || ''}</span></td>
-                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte || ''}</td>
-                        <td class="p-2.5 text-center">${e.acervo || 'Não Informado'}</td>
-                        <td class="p-2.5 text-center">${e.dependencia || 'Não Informado'}</td>
-                    </tr>`;
-            });
-        }
-
+        // ================= FLOW: PROCESSOS =================
         function renderizarProcessosFlutuantes() {
             const corpo = document.getElementById('tabela-processos-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            const procList = processosDB || [];
-            if(procList.length === 0) { corpo.innerHTML = "<tr><td colspan='3' class='p-4 text-center text-gray-400'>Nenhum fluxo ativo.</td></tr>"; return; }
-            procList.forEach(p => {
-                if(!p) return;
+            const filtro = document.getElementById('filtro-processo-busca').value.toUpperCase();
+            
+            const filtered = processosDB.filter(p => 
+                p && (p.aluno.toUpperCase().includes(filtro) || p.escola.toUpperCase().includes(filtro))
+            );
+
+            if(filtered.length === 0) { corpo.innerHTML = "<tr><td colspan='4' class='p-4 text-center text-gray-400'>Nenhum fluxo encontrado.</td></tr>"; return; }
+            
+            filtered.forEach(p => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b text-xs">
-                        <td class="p-2.5 font-bold uppercase">${p.aluno || ''}</td>
-                        <td class="p-2.5 uppercase">${p.escola || ''}</td>
-                        <td class="p-2.5 text-center"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase text-[10px]">${p.etapa || ''}</span></td>
+                        <td class="p-2.5 font-bold uppercase">${p.aluno}</td>
+                        <td class="p-2.5 uppercase">${p.escola}</td>
+                        <td class="p-2.5 text-center"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase text-[10px]">${p.etapa}</span></td>
+                        <td class="p-2.5 text-center">
+                            <button onclick="editarProcessoClick(${p.id})" class="text-blue-600 hover:text-blue-800 font-bold cursor-pointer mr-2">Editar</button>
+                        </td>
                     </tr>`;
             });
         }
 
+        function abrirModalProcesso() {
+            document.getElementById('form-processo').reset();
+            document.getElementById('proc-id').value = "";
+            document.getElementById('titulo-modal-processo').innerText = "📁 Novo Fluxo de Processo";
+            document.getElementById('modal-processo').classList.remove('hidden');
+        }
+
+        function fecharModalProcesso() { document.getElementById('modal-processo').classList.add('hidden'); }
+
+        function editarProcessoClick(id) {
+            const p = processosDB.find(item => item.id == id);
+            if(!p) return;
+            document.getElementById('proc-id').value = p.id;
+            document.getElementById('proc-aluno').value = p.aluno;
+            document.getElementById('proc-escola').value = p.escola;
+            document.getElementById('proc-etapa').value = p.etapa;
+            document.getElementById('titulo-modal-processo').innerText = "📝 Atualizar Etapa do Processo";
+            document.getElementById('modal-processo').classList.remove('hidden');
+        }
+
+        async function salvarProcessoFormulario(event) {
+            event.preventDefault();
+            const id = document.getElementById('proc-id').value;
+            const payload = {
+                aluno: document.getElementById('proc-aluno').value.toUpperCase().trim(),
+                escola: document.getElementById('proc-escola').value.toUpperCase().trim(),
+                etapa: document.getElementById('proc-etapa').value
+            };
+
+            try {
+                if(id) {
+                    await supabase.from('processos_sigee').update(payload).eq('id', id);
+                    await registrarLogNoSupabase(`Editou processo do aluno: ${payload.aluno}`);
+                } else {
+                    await supabase.from('processos_sigee').insert([payload]);
+                    await registrarLogNoSupabase(`Criou novo processo para: ${payload.aluno}`);
+                }
+                fecharModalProcesso();
+                await sincronizarTabelasDoSupabase();
+                renderizarProcessosFlutuantes();
+            } catch(e) { alert("Erro ao salvar processo."); }
+        }
+
+        // ================= FLOW: ESCOLAS =================
+        function renderizarListaEscolasBufferMemoria() {
+            const corpo = document.getElementById('tabela-escolas-corpo');
+            if(!corpo) return; corpo.innerHTML = "";
+            const filtro = document.getElementById('filtro-escola-busca').value.toUpperCase();
+
+            const filtered = escolasDB.filter(e => 
+                e && (e.nome.toUpperCase().includes(filtro) || e.municipio.toUpperCase().includes(filtro))
+            );
+
+            document.getElementById('info-quantidade-escolas-carregadas').innerText = `Exibindo: ${filtered.length} de ${escolasDB.length} escolas`;
+            
+            filtered.forEach(e => {
+                corpo.innerHTML += `
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="p-2.5 font-bold uppercase">${e.nome} <span class="block text-[10px] text-gray-400">${e.municipio}</span></td>
+                        <td class="p-2.5 text-center font-semibold text-blue-900">${e.nte}</td>
+                        <td class="p-2.5 text-center">${e.acervo || 'Não Informado'}</td>
+                        <td class="p-2.5 text-center">${e.dependencia || 'Não Informado'}</td>
+                        <td class="p-2.5 text-center">
+                            <button onclick="editarEscolaClick(${e.id})" class="text-blue-600 hover:text-blue-800 font-bold cursor-pointer">Editar</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        function abrirModalEscola() {
+            document.getElementById('form-escola').reset();
+            document.getElementById('esc-id').value = "";
+            document.getElementById('titulo-modal-escola').innerText = "🗄️ Cadastro de Unidade Escolar";
+            document.getElementById('modal-escola').classList.remove('hidden');
+        }
+
+        function fecharModalEscola() { document.getElementById('modal-escola').classList.add('hidden'); }
+
+        function editarEscolaClick(id) {
+            const e = escolasDB.find(item => item.id == id);
+            if(!e) return;
+            document.getElementById('esc-id').value = e.id;
+            document.getElementById('esc-nome').value = e.nome;
+            document.getElementById('esc-municipio').value = e.municipio;
+            document.getElementById('esc-nte').value = e.nte;
+            document.getElementById('esc-acervo').value = e.acervo;
+            document.getElementById('esc-dependencia').value = e.dependencia;
+            document.getElementById('titulo-modal-escola').innerText = "📝 Editar Dados da Unidade";
+            document.getElementById('modal-escola').classList.remove('hidden');
+        }
+
+        async function salvarEscolaFormulario(event) {
+            event.preventDefault();
+            const id = document.getElementById('esc-id').value;
+            const payload = {
+                nome: document.getElementById('esc-nome').value.toUpperCase().trim(),
+                municipio: document.getElementById('esc-municipio').value.toUpperCase().trim(),
+                nte: document.getElementById('esc-nte').value,
+                acervo: document.getElementById('esc-acervo').value,
+                dependencia: document.getElementById('esc-dependencia').value
+            };
+
+            try {
+                if(id) {
+                    await supabase.from('escolas_sigee').update(payload).eq('id', id);
+                    await registrarLogNoSupabase(`Editou dados da escola: ${payload.nome}`);
+                } else {
+                    await supabase.from('escolas_sigee').insert([payload]);
+                    await registrarLogNoSupabase(`Cadastrou nova escola: ${payload.nome}`);
+                }
+                fecharModalEscola();
+                await sincronizarTabelasDoSupabase();
+                renderizarListaEscolasBufferMemoria();
+            } catch(e) { alert("Erro ao salvar escola."); }
+        }
+
+        // ================= FLOW: USUÁRIOS =================
         function carregarListaUsuarios() {
             const corpo = document.getElementById('tabela-usuarios-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            const userList = usuariosDB || [];
-            userList.forEach(u => {
-                if(!u) return;
+            usuariosDB.forEach(u => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2.5 font-bold uppercase">${u.nome || ''}</td>
-                        <td class="p-2.5 font-mono text-gray-500">${u.email || ''}</td>
-                        <td class="p-2.5 text-center"><span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">${u.perfil || ''}</span></td>
+                        <td class="p-2.5 font-bold uppercase">${u.nome}</td>
+                        <td class="p-2.5 font-mono text-gray-500">${u.email}</td>
+                        <td class="p-2.5 text-center"><span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">${u.perfil}</span></td>
+                        <td class="p-2.5 text-center">
+                            <button onclick="editarUsuarioClick(${u.id})" class="text-purple-600 hover:text-purple-800 font-bold cursor-pointer">Editar</button>
+                        </td>
                     </tr>`;
             });
         }
 
+        function abrirModalUsuario() {
+            document.getElementById('form-usuario').reset();
+            document.getElementById('user-id').value = "";
+            document.getElementById('titulo-modal-usuario').innerText = "👥 Cadastro de Operador Regional";
+            document.getElementById('modal-usuario').classList.remove('hidden');
+        }
+
+        function fecharModalUsuario() { document.getElementById('modal-usuario').classList.add('hidden'); }
+
+        function editarUsuarioClick(id) {
+            const u = usuariosDB.find(item => item.id == id);
+            if(!u) return;
+            document.getElementById('user-id').value = u.id;
+            document.getElementById('user-nome-input').value = u.nome;
+            document.getElementById('user-email-input').value = u.email;
+            document.getElementById('user-senha-input').value = u.senha;
+            document.getElementById('user-nte-input').value = u.nte;
+            document.getElementById('user-perfil-input').value = u.perfil;
+            document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Cadastro do Técnico";
+            document.getElementById('modal-usuario').classList.remove('hidden');
+        }
+
+        async function salvarUsuarioFormulario(event) {
+            event.preventDefault();
+            const id = document.getElementById('user-id').value;
+            const payload = {
+                nome: document.getElementById('user-nome-input').value.toUpperCase().trim(),
+                email: document.getElementById('user-email-input').value.trim(),
+                senha: document.getElementById('user-senha-input').value,
+                nte: document.getElementById('user-nte-input').value,
+                perfil: document.getElementById('user-perfil-input').value
+            };
+
+            try {
+                if(id) {
+                    await supabase.from('usuarios_sigee').update(payload).eq('id', id);
+                    await registrarLogNoSupabase(`Editou operador técnico: ${payload.email}`);
+                } else {
+                    await supabase.from('usuarios_sigee').insert([payload]);
+                    await registrarLogNoSupabase(`Cadastrou novo operador técnico: ${payload.email}`);
+                }
+                fecharModalUsuario();
+                await sincronizarTabelasDoSupabase();
+                carregarListaUsuarios();
+            } catch(e) { alert("Erro ao salvar técnico."); }
+        }
+
+        // ================= FLOW: LOGS & EXCEL =================
         function carregarLogs() {
             const corpo = document.getElementById('tabela-logs-corpo');
             if(!corpo) return; corpo.innerHTML = "";
-            const lgList = logsDB || [];
-            lgList.forEach(l => {
-                if(!l) return;
+            logsDB.forEach(l => {
                 corpo.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b text-xs">
                         <td class="p-2.5 text-gray-400 font-medium">${l.data || ''}</td>
@@ -347,7 +643,30 @@
                     const sheetName = workbook.SheetNames[0];
                     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
                     
-                    alert(`Planilha lida com sucesso! Encontradas ${rows.length} linhas.`);
+                    if (rows.length === 0) return alert("Planilha vazia.");
+
+                    alert(`Efetuando upload de ${rows.length} escolas. Aguarde a confirmação de conclusão.`);
+                    
+                    const formatadas = rows.map(r => ({
+                        nome: String(r.nome || r.Nome || '').toUpperCase().trim(),
+                        municipio: String(r.municipio || r.Municipio || '').toUpperCase().trim(),
+                        nte: String(r.nte || r.Nte || r.NTE || 'NTE 01').trim(),
+                        acervo: String(r.acervo || r.Acervo || 'Recolhido').trim(),
+                        dependencia: String(r.dependencia || r.Dependencia || 'Estadual').trim()
+                    }));
+
+                    const { error } = await supabase.from('escolas_sigee').insert(formatadas);
+                    
+                    if(!error) {
+                        alert("Todas as escolas foram importadas com sucesso!");
+                        await registrarLogNoSupabase(`Efetuou carga em lote de ${formatadas.length} escolas via Excel.`);
+                        await sincronizarTabelasDoSupabase();
+                        if(!document.getElementById('aba-escolas').classList.contains('hidden')) {
+                            renderizarListaEscolasBufferMemoria();
+                        }
+                    } else {
+                        alert("Erro ao inserir dados no Supabase. Verifique os cabeçalhos.");
+                    }
                 } catch(err) { alert("Erro ao ler arquivo Excel."); }
             };
             reader.readAsArrayBuffer(file);
