@@ -1426,108 +1426,85 @@
             } catch (err) {}
         }
 
-// ================= CONTROLADOR REFACTOR DA MODAL (USUÁRIOS) =================
+// ============================================================================
+// CONTROLADOR CENTRAL DO MODAL DE GERENCIAMENTO DE USUÁRIOS
+// ============================================================================
+
+/**
+ * Altera o estado de visibilidade do modal de usuários (Criação/Edição).
+ * Centraliza a manipulação de classes utilitárias do Tailwind CSS.
+ * @param {boolean} deveAbrir - Define se o modal deve ser exibido (true) ou ocultado (false).
+ */
 function controlarModalEdicaoUsuario(deveAbrir = false) {
     const modal = document.getElementById('modal-edicao-usuario');
-    if (!modal) return;
+    
+    // Cláusula de salvaguarda contra quebras caso o elemento mude de ID no HTML
+    if (!modal) {
+        console.error("Erro: O elemento 'modal-edicao-usuario' não foi localizado no DOM.");
+        return;
+    }
 
-    // Alterna as classes do Tailwind de forma limpa usando toggle
+    // Sincroniza a visibilidade usando toggles lógicos reversos de forma atômica
     modal.classList.toggle('hidden', !deveAbrir);
     modal.classList.toggle('flex', deveAbrir);
 }
 
-// Atalhos adaptados para manter o funcionamento do seu HTML original (onclick)
+/**
+ * Prepara a interface e limpa resíduos de dados anteriores 
+ * para iniciar o fluxo de criação de um novo Técnico.
+ */
 function abrirModalCriarUsuario() {
+    // Evita herança acidental de IDs de edições anteriores
     document.getElementById('cad-id').value = "";
+    
+    // Redefine todos os inputs para seus estados nativos vazios
     document.getElementById('form-cadastro-usuario').reset();
+    
+    // Atualiza o contexto semântico do título da janela
     document.getElementById('titulo-modal-usuario').innerText = "✨ Cadastrar Novo Técnico";
     
-    // Abre a modal centralizadamente
+    // Exibe o modal limpo
     controlarModalEdicaoUsuario(true);
 }
 
+/**
+ * Fecha o modal de gerenciamento de forma limpa.
+ * Pode ser acionado por botões de fechar, cancelar ou cliques externos.
+ */
 function fecharModalUsuario() { 
     controlarModalEdicaoUsuario(false); 
 }
 
+/**
+ * Injeta os dados do registro selecionado nos inputs correspondentes
+ * e prepara a interface para o fluxo de modificação cadastral.
+ * @param {string|number} id - ID único do usuário no banco.
+ * @param {string} nome - Nome do colaborador.
+ * @param {string} email - E-mail de login corporativo.
+ * @param {string} perfil - Nível de permissão (ex: Admin, Técnico).
+ * @param {string|number} nte_id - ID de vinculação do Núcleo Territorial.
+ */
 function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
+    // Alimenta os elementos do formulário com os metadados atuais do escopo
     document.getElementById('cad-id').value = id;
     document.getElementById('cad-nome').value = nome;
     document.getElementById('cad-email').value = email;
     document.getElementById('cad-perfil').value = perfil;
     document.getElementById('cad-nte').value = nte_id;
+    
+    // Transiciona o contexto do título para modo de edição
     document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
     
-    // Abre a modal centralizadamente
+    // Exibe o modal devidamente populado
     controlarModalEdicaoUsuario(true);
 }
-    controlarModalEdicaoUsuario(true);
-}
-
-function fecharModalUsuario() { 
-    controlarModalEdicaoUsuario(false); 
-}
-
-function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
-    document.getElementById('cad-id').value = id;
-    document.getElementById('cad-nome').value = nome;
-    document.getElementById('cad-email').value = email;
-    document.getElementById('cad-perfil').value = perfil;
-    document.getElementById('cad-nte').value = nte_id;
-    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
     
-    // Abre a modal centralizadamente
+    // Exibe o modal devidamente populado
+    controlarModalEdicaoUsuario(true);
+}    
+    // Exibe a interface devidamente populada e pronta para o manuseio
     controlarModalEdicaoUsuario(true);
 }
-
-function fecharModalUsuario() { 
-    controlarModalEdicaoUsuario(false); 
-}
-
-function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
-    document.getElementById('cad-id').value = id;
-    document.getElementById('cad-nome').value = nome;
-    document.getElementById('cad-email').value = email;
-    document.getElementById('cad-perfil').value = perfil;
-    document.getElementById('cad-nte').value = nte_id;
-    document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
-    
-    controlarModalEdicaoUsuario(true);
-}
-
-        async function salvarUsuario(event) {
-            event.preventDefault();
-            const id = document.getElementById('cad-id').value;
-            const payload = { 
-                nome: document.getElementById('cad-nome').value.trim(), 
-                email: document.getElementById('cad-email').value.trim(), 
-                perfil: document.getElementById('cad-perfil').value,
-                nte_id: document.getElementById('cad-nte').value || null
-            };
-            try {
-                if(id && id.trim() !== "") await fetch(`${BASE_URL}/usuarios_sigee?id=eq.` + id, { method: "PATCH", headers: headerspadrao, body: JSON.stringify(payload) });
-                else await fetch(`${BASE_URL}/usuarios_sigee`, { method: "POST", headers: headerspadrao, body: JSON.stringify(payload) });
-                fecharModalUsuario(); 
-                carregarListaUsuarios();
-            } catch (err) {}
-        }
-
-        async function alternarStatusUsuario(id, statusAtual, nome) {
-            try {
-                const novoStatus = !statusAtual;
-                await fetch(`${BASE_URL}/usuarios_sigee?id=eq.` + id, { method: "PATCH", headers: headerspadrao, body: JSON.stringify({ status: novoStatus }) });
-                carregarListaUsuarios();
-            } catch (err) {}
-        }
-
-        async function resetarSenhaUsuario(id, nome) {
-            if(!confirm("Confirma resetar a senha de " + nome + "?")) return;
-            try {
-                await fetch(`${BASE_URL}/usuarios_sigee?id=eq.` + id, { method: "PATCH", headers: headerspadrao, body: JSON.stringify({ senha_hash: "SEC@1234", forcar_nova_senha: true }) });
-                alert("Redefinição concluída.");
-            } catch (err) {}
-        }
-
         async function carregarLogs() {
             try {
                 const r = await fetch(`${BASE_URL}/logs_sigee?order=id.desc&limit=50`, { method: "GET", headers: { "apikey": API_KEY } });
