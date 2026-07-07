@@ -1431,80 +1431,131 @@
 // ============================================================================
 
 /**
- * Altera o estado de visibilidade do modal de usuários (Criação/Edição).
- * Centraliza a manipulação de classes utilitárias do Tailwind CSS.
+ * Altera o estado de visibilidade do modal de cadastro/edição de usuários.
+ * Centraliza a alternância das classes utilitárias do Tailwind CSS de forma atômica.
  * @param {boolean} deveAbrir - Define se o modal deve ser exibido (true) ou ocultado (false).
  */
 function controlarModalEdicaoUsuario(deveAbrir = false) {
     const modal = document.getElementById('modal-edicao-usuario');
     
-    // Cláusula de salvaguarda contra quebras caso o elemento mude de ID no HTML
+    // Cláusula de salvaguarda: previne quebras caso a árvore do DOM seja alterada no HTML
     if (!modal) {
         console.error("Erro: O elemento 'modal-edicao-usuario' não foi localizado no DOM.");
         return;
     }
 
-    // Sincroniza a visibilidade usando toggles lógicos reversos de forma atômica
+    // Sincroniza o estado visual removendo conflitos de sobreposição de classes (.add/.remove)
     modal.classList.toggle('hidden', !deveAbrir);
     modal.classList.toggle('flex', deveAbrir);
 }
 
 /**
- * Prepara a interface e limpa resíduos de dados anteriores 
- * para iniciar o fluxo de criação de um novo Técnico.
+ * Redefine os campos do formulário e prepara a interface para a criação
+ * de uma nova conta de técnico.
  */
 function abrirModalCriarUsuario() {
-    // Evita herança acidental de IDs de edições anteriores
+    // Limpa o ID oculto para garantir que a requisição seja identificada como POST (Criação)
     document.getElementById('cad-id').value = "";
     
-    // Redefine todos os inputs para seus estados nativos vazios
+    // Reseta todos os inputs textuais e seletores para o estado nativo vazio
     document.getElementById('form-cadastro-usuario').reset();
     
-    // Atualiza o contexto semântico do título da janela
+    // Atualiza dinamicamente o cabeçalho descritivo da janela para o usuário
     document.getElementById('titulo-modal-usuario').innerText = "✨ Cadastrar Novo Técnico";
     
-    // Exibe o modal limpo
+    // Abre o componente visualmente
     controlarModalEdicaoUsuario(true);
 }
 
 /**
- * Fecha o modal de gerenciamento de forma limpa.
- * Pode ser acionado por botões de fechar, cancelar ou cliques externos.
+ * Atalho semântico para ocultar a interface de gerenciamento de usuário.
  */
 function fecharModalUsuario() { 
     controlarModalEdicaoUsuario(false); 
 }
 
 /**
- * Injeta os dados do registro selecionado nos inputs correspondentes
- * e prepara a interface para o fluxo de modificação cadastral.
- * @param {string|number} id - ID único do usuário no banco.
- * @param {string} nome - Nome do colaborador.
- * @param {string} email - E-mail de login corporativo.
- * @param {string} perfil - Nível de permissão (ex: Admin, Técnico).
- * @param {string|number} nte_id - ID de vinculação do Núcleo Territorial.
+ * Popula os campos do formulário com metadados existentes de um registro ativo
+ * e exibe a interface configurada para o fluxo de modificação cadastral.
+ * @param {string|number} id - Identificador único do registro no banco de dados.
+ * @param {string} nome - Nome completo do colaborador técnico.
+ * @param {string} email - Endereço eletrônico de login do usuário.
+ * @param {string} perfil - Nível de acesso atribuído (ex: Admin, Tecnico).
+ * @param {string|number} nte_id - ID do Núcleo Territorial de Educação vinculado.
  */
 function prepararEdicaoUsuario(id, nome, email, perfil, nte_id) {
-    // Alimenta os elementos do formulário com os metadados atuais do escopo
+    // Alimenta os inputs correspondentes no escopo do formulário
     document.getElementById('cad-id').value = id;
     document.getElementById('cad-nome').value = nome;
     document.getElementById('cad-email').value = email;
     document.getElementById('cad-perfil').value = perfil;
     document.getElementById('cad-nte').value = nte_id;
     
-    // Transiciona o contexto do título para modo de edição
+    // Altera a semântica do título do modal para indicar modo de edição
     document.getElementById('titulo-modal-usuario').innerText = "📝 Editar Configurações de Usuário";
     
-    // Exibe o modal devidamente populado
+    // Apresenta o modal carregado
     controlarModalEdicaoUsuario(true);
 }
+
+// ============================================================================
+// SUBMISSÃO E PERSISTÊNCIA (SALVAR / ATUALIZAR USUÁRIO)
+// ============================================================================
+
+/**
+ * Trata o evento de submissão do formulário, validando a intenção de persistência
+ * e roteando os dados entre rotas PATCH (edição) ou POST (criação) do Supabase.
+ * @param {Event} event - Objeto nativo do evento de envio interceptado.
+ */
+async function salvarUsuario(event) {
+    // Bloqueia o comportamento padrão do navegador de recarregar a página
+    event.preventDefault();
     
-    // Exibe o modal devidamente populado
-    controlarModalEdicaoUsuario(true);
-}    
-    // Exibe a interface devidamente populada e pronta para o manuseio
-    controlarModalEdicaoUsuario(true);
+    // Captura o identificador e limpa espaços extras se — e somente se — for string
+    const idInput = document.getElementById('cad-id').value;
+    const id = typeof idInput === 'string' ? idInput.trim() : idInput;
+    
+    // Monta o payload sanitizado de envio
+    const payload = {
+        nome: document.getElementById('cad-nome').value.trim(),
+        email: document.getElementById('cad-email').value.trim(),
+        perfil: document.getElementById('cad-perfil').value,
+        nte_id: document.getElementById('cad-nte').value || null
+    };
+
+    // Estende os headers padrão eliminando os warnings de 'return=minimal' do PostgREST
+    const headersComRetorno = {
+        ...headerspadrao,
+        "Prefer": "return=representation"
+    };
+
+    try {
+        // Validação estrita de existência do ID para discernir PATCH de POST
+        if (id !== undefined && id !== null && id !== "") {
+            // Sintaxe corrigida: Interpolação limpa usando apenas Template Literals
+            await fetch(`${BASE_URL}/usuarios_sigee?id=eq.${id}`, { 
+                method: "PATCH", 
+                headers: headersComRetorno, 
+                body: JSON.stringify(payload) 
+            });
+        } else {
+            await fetch(`${BASE_URL}/usuarios_sigee`, { 
+                method: "POST", 
+                headers: headersComRetorno, 
+                body: JSON.stringify(payload) 
+            });
+        }
+        
+        // Finaliza o ciclo fechando o modal e forçando o refresco assíncrono da tabela
+        fecharModalUsuario();
+        carregarListaUsuarios();
+        
+    } catch (err) {
+        console.error("Erro crítico ao persistir dados do usuário no servidor:", err);
+    }
 }
+
+Refactor modal control functions for user management, improving comments and code clarity.
         async function carregarLogs() {
             try {
                 const r = await fetch(`${BASE_URL}/logs_sigee?order=id.desc&limit=50`, { method: "GET", headers: { "apikey": API_KEY } });
