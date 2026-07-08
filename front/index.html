@@ -5414,5 +5414,327 @@
 })();
 </script>
 
+
+
+<script>
+/* =====================================================================
+   SIGEE V36 - Importação robusta de Escolas, Processos e atualização Dashboard
+   Correções:
+   - Reconhece planilhas com cabeçalhos diferentes.
+   - Importa escolas mesmo quando o município/NTE vêm em colunas combinadas.
+   - Importa processos/fluxo com colunas simples ou combinadas: "Aluno / Doc", "Instituição / NTE".
+   - Atualiza dashboard, catálogo e fluxo imediatamente após a importação.
+   - Mantém regra: somente Master, Administrador e Grupo SEC importam.
+   ===================================================================== */
+(function(){
+  'use strict';
+
+  const EMAIL_SEC_V36 = 'sec@enova.educacao.ba.gov.br';
+
+  function txt(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function sem(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function upper(v){ return sem(v).toUpperCase(); }
+  function clean(v){ return upper(v).replace(/[^A-Z0-9]/g,''); }
+  function email(v){ return txt(v).toLowerCase(); }
+  function titleUpper(v){ return txt(v).replace(/\s+/g,' ').trim().toUpperCase(); }
+  function isBlankRow(row){ return !Object.values(row||{}).some(v => txt(v)); }
+
+  function perfilImportadorV36(u){
+    const p = upper(u && u.perfil);
+    if(p.includes('MASTER')) return 'MASTER';
+    if(p.includes('ADMIN')) return 'ADMINISTRADOR';
+    if(p.includes('CONSULT')) return 'CONSULTA';
+    if(p.includes('SEC')) return 'ADMINISTRADOR';
+    return 'TECNICO';
+  }
+  function isSecV36(u){
+    return !!u && (email(u.email) === EMAIL_SEC_V36 || upper(u.grupo).includes('SEC') || upper(u.nte).includes('SEC') || upper(u.nte).includes('TODOS OS NTES'));
+  }
+  function podeImportarV36(u){
+    const p = perfilImportadorV36(u);
+    return p === 'MASTER' || p === 'ADMINISTRADOR' || isSecV36(u);
+  }
+
+  function keys(row){ return Object.keys(row||{}); }
+  function getCell(row, aliases){
+    const ks = keys(row);
+    const targets = aliases.map(clean).filter(Boolean);
+    let k = ks.find(x => targets.includes(clean(x)));
+    if(!k) k = ks.find(x => targets.some(a => clean(x).includes(a) || a.includes(clean(x))));
+    if(!k) return '';
+    return txt(row[k]);
+  }
+  function getAny(row, groups){
+    for(const g of groups){ const v=getCell(row,g); if(v) return v; }
+    return '';
+  }
+  function firstLine(v){ return txt(v).split(/\r?\n|\|/).map(s=>txt(s)).filter(Boolean)[0] || txt(v); }
+  function secondLine(v){ const a=txt(v).split(/\r?\n|\|/).map(s=>txt(s)).filter(Boolean); return a[1] || ''; }
+
+  function nteNumero(v){
+    const t = txt(v);
+    const m = t.match(/NTE\s*[- ]?\s*(\d{1,2})/i) || t.match(/\b(\d{1,2})\b/);
+    const n = m ? Number(m[1]) : Number(t);
+    return (!Number.isNaN(n) && n >= 1 && n <= 27) ? n : null;
+  }
+  function nteNome(v){
+    const n = nteNumero(v);
+    if(n && typeof obterNomeNtePorIdSIGEE === 'function') return obterNomeNtePorIdSIGEE(n) || `NTE-${String(n).padStart(2,'0')}`;
+    if(n) return `NTE-${String(n).padStart(2,'0')}`;
+    return txt(v) || 'NTE-26 Salvador';
+  }
+  function nextId(lista, base){
+    const nums = Array.isArray(lista) ? lista.map(x=>Number(x.id)||0) : [];
+    return nums.length ? Math.max(...nums, base-1)+1 : base;
+  }
+
+  const ALIAS = {
+    mec: ['cod_mec','codigo_mec','código mec','cod mec','cód mec','mec','codigo sec','código sec','codigo','código'],
+    escola: ['nome_escola','nome da escola','nome escola','nome da instituição','nome da instituicao','instituição','instituicao','escola','unidade escolar','nome'],
+    municipio: ['municipio','município','cidade','localidade'],
+    nte: ['nte','nte vinculado','nte correspondente','nte / dep. adm','nte dep adm','núcleo','nucleo','territorio','território'],
+    nteId: ['nte_id','id nte','codigo nte','código nte','cod nte'],
+    dependencia: ['dependencia_adm','dependência administrativa','dependencia administrativa','dependencia','dep. administrativo','dep administrativo','dep adm','nte / dep. adm'],
+    situacao: ['situacao_funcional','situação funcional','situacao funcional','situação da escola','situacao da escola','situação','situacao','status escola','status'],
+    acervo: ['status_acervo','status do acervo','situação do acervo','situacao do acervo','acervo'],
+    localAcervo: ['local_acervo','local do acervo','local físico do acervo','local fisico do acervo','local'],
+    aluno: ['aluno','aluno_nome','nome aluno','nome do aluno','nome completo do aluno','nome completo','requerente','nome_solicitante','solicitante','aluno / doc','aluno/doc'],
+    documento: ['documento','documento_tipo','tipo de documento','documento solicitado','documento_solicitado','doc','aluno / doc','aluno/doc'],
+    etapa: ['etapa','etapa_atual','etapa atual','fase','fase_atual','fase atual','status processo','status'],
+    data: ['data_etapa_atual','data etapa','data','created_at','criado_em','data abertura','abertura','última movimentação','ultima movimentacao'],
+    modalidade: ['modalidade','oferta_modalidade'],
+    ensino: ['ensino','nivel_oferta','nível oferta','oferta_nivel','nível','nivel'],
+    prioridade: ['prioridade'],
+    tecnico: ['tecnico','técnico','tecnico_responsavel','técnico responsável','responsavel','responsável','digitador','analista']
+  };
+
+  function normalizarEtapaV36(v){
+    const e = upper(v);
+    if(e.includes('ANAL')) return 'Análise';
+    if(e.includes('PEND')) return 'Pendência';
+    if(e.includes('DIGIT')) return 'Digitação';
+    if(e.includes('CONFER')) return 'Conferência';
+    if(e.includes('ASSIN')) return 'Assinatura';
+    if(e.includes('DEFER')) return 'Deferido';
+    if(e.includes('AGUARD')) return 'Aguardando Retirada';
+    if(e.includes('RETIR')) return 'Retirado';
+    return 'Desarquivamento';
+  }
+
+  function converterEscolaV36(row){
+    const campoNteDep = getCell(row, ['nte / dep. adm','nte dep adm','nte/dependencia','nte dependencia']);
+    const mec = getCell(row, ALIAS.mec);
+    const nome = getCell(row, ALIAS.escola);
+    let municipio = getCell(row, ALIAS.municipio);
+    let nte = getCell(row, ALIAS.nte) || firstLine(campoNteDep);
+    const dep = getCell(row, ALIAS.dependencia) || secondLine(campoNteDep) || 'Estadual';
+    const nteIdRaw = getCell(row, ALIAS.nteId) || nte;
+    const nteId = nteNumero(nteIdRaw) || 26;
+    if(!nte) nte = nteNome(nteId);
+    if(!municipio) municipio = 'NÃO INFORMADO';
+    return {
+      id: null,
+      cod_mec: txt(mec),
+      nome: titleUpper(nome),
+      nome_escola: titleUpper(nome),
+      municipio: titleUpper(municipio),
+      nte: nteNome(nte),
+      nte_id: nteId,
+      dependencia: txt(dep || 'Estadual'),
+      dependencia_adm: txt(dep || 'Estadual'),
+      situacao: txt(getCell(row, ALIAS.situacao) || 'Extinta'),
+      situacao_funcional: txt(getCell(row, ALIAS.situacao) || 'Extinta'),
+      acervo: txt(getCell(row, ALIAS.acervo) || 'Recolhido'),
+      status_acervo: txt(getCell(row, ALIAS.acervo) || 'Recolhido'),
+      local_acervo: txt(getCell(row, ALIAS.localAcervo) || 'Acervo do NTE'),
+      ativo: true
+    };
+  }
+
+  function converterProcessoV36(row){
+    const alunoDoc = getCell(row, ['aluno / doc','aluno/doc','aluno - doc']);
+    const instNte = getCell(row, ['instituição / nte','instituicao / nte','instituição/nte','instituicao/nte','instituição - nte','instituicao - nte']);
+    const aluno = getCell(row, ALIAS.aluno) || firstLine(alunoDoc);
+    const escolaNome = getCell(row, ['escola_nome','nome_escola','nome da escola','instituição','instituicao','escola']) || firstLine(instNte);
+    const cod = getCell(row, ALIAS.mec);
+    let escolaLocal = null;
+    try { escolaLocal = (escolasDB||[]).find(e => txt(e.cod_mec) === txt(cod) || upper(e.nome || e.nome_escola) === upper(escolaNome)); } catch(e){}
+    let nte = getCell(row, ALIAS.nte) || secondLine(instNte) || (escolaLocal && escolaLocal.nte) || '';
+    if(!nte) nte = 'NTE-26 Salvador';
+    return {
+      id: Number(getCell(row, ['id','processo','codigo processo','código processo','nº processo','n processo'])) || null,
+      aluno: titleUpper(aluno),
+      aluno_nome: titleUpper(aluno),
+      escola: titleUpper(escolaNome || (escolaLocal && (escolaLocal.nome || escolaLocal.nome_escola)) || 'NÃO INFORMADA'),
+      escola_nome: titleUpper(escolaNome || (escolaLocal && (escolaLocal.nome || escolaLocal.nome_escola)) || 'NÃO INFORMADA'),
+      documento: txt(getCell(row, ALIAS.documento) || secondLine(alunoDoc) || 'HISTÓRICO'),
+      documento_tipo: txt(getCell(row, ALIAS.documento) || secondLine(alunoDoc) || 'HISTÓRICO'),
+      etapa: normalizarEtapaV36(getCell(row, ALIAS.etapa)),
+      etapa_atual: normalizarEtapaV36(getCell(row, ALIAS.etapa)),
+      data_etapa_atual: txt(getCell(row, ALIAS.data) || (typeof obterDataAtualFormatada === 'function' ? obterDataAtualFormatada() : new Date().toLocaleDateString('pt-BR'))),
+      nte: nteNome(nte),
+      municipio: titleUpper(getCell(row, ALIAS.municipio) || (escolaLocal && escolaLocal.municipio) || ''),
+      modalidade: txt(getCell(row, ALIAS.modalidade) || ''),
+      ensino: txt(getCell(row, ALIAS.ensino) || ''),
+      prioridade: txt(getCell(row, ALIAS.prioridade) || ''),
+      tecnico_responsavel: txt(getCell(row, ALIAS.tecnico) || '')
+    };
+  }
+
+  function deveSerEscola(row, nomeAba){
+    if(isBlankRow(row)) return false;
+    const aba = upper(nomeAba);
+    const temMec = !!getCell(row, ALIAS.mec);
+    const temEscola = !!getCell(row, ALIAS.escola);
+    const temAluno = !!getCell(row, ALIAS.aluno);
+    if(aba.includes('ESCOLA') || aba.includes('ACERVO') || aba.includes('CATALOGO') || aba.includes('CATÁLOGO')) return temMec && temEscola;
+    return temMec && temEscola && !temAluno;
+  }
+
+  function deveSerProcesso(row, nomeAba){
+    if(isBlankRow(row)) return false;
+    const aba = upper(nomeAba);
+    const aluno = getCell(row, ALIAS.aluno) || getCell(row, ['aluno / doc','aluno/doc']);
+    const inst = getCell(row, ['instituição / nte','instituicao / nte','instituição/nte','instituicao/nte']) || getCell(row, ALIAS.escola);
+    if(aba.includes('PROCESS') || aba.includes('FLUXO') || aba.includes('SOLICIT')) return !!(aluno || inst || getCell(row, ALIAS.etapa));
+    return !!aluno && !!(inst || getCell(row, ALIAS.documento) || getCell(row, ALIAS.etapa));
+  }
+
+  async function upsertLotesV36(tabela, payload, conflito){
+    const client = (typeof obterSupabaseSIGEE === 'function') ? obterSupabaseSIGEE() : null;
+    if(!client || !payload.length) return;
+    for(let i=0; i<payload.length; i+=100){
+      const lote = payload.slice(i, i+100);
+      const { error } = await client.from(tabela).upsert(lote, { onConflict: conflito, ignoreDuplicates: false });
+      if(error) throw error;
+    }
+  }
+
+  async function gravarImportacaoV36(escolasAlteradas, processosAlterados){
+    const erros = [];
+    try{
+      if(escolasAlteradas.length){
+        const payload = escolasAlteradas.map(e => {
+          const base = (typeof escolaParaSupabaseSIGEE === 'function') ? escolaParaSupabaseSIGEE(e) : e;
+          return {
+            cod_mec: txt(base.cod_mec),
+            nome_escola: titleUpper(base.nome_escola || e.nome),
+            municipio: titleUpper(base.municipio || 'NÃO INFORMADO'),
+            nte_id: Number(base.nte_id || e.nte_id || nteNumero(e.nte) || 26),
+            dependencia_adm: txt(base.dependencia_adm || e.dependencia || 'Estadual'),
+            situacao_funcional: txt(base.situacao_funcional || e.situacao || 'Extinta'),
+            acervo: txt(base.acervo || e.acervo || 'Recolhido'),
+            status_acervo: txt(base.status_acervo || e.status_acervo || e.acervo || 'Recolhido'),
+            local_acervo: txt(base.local_acervo || e.local_acervo || 'Acervo do NTE'),
+            ativo: true
+          };
+        }).filter(e => e.cod_mec && e.nome_escola);
+        await upsertLotesV36('escolas_sigee', payload, 'cod_mec');
+      }
+    }catch(e){ erros.push('escolas_sigee: ' + (e.message || JSON.stringify(e))); }
+
+    try{
+      if(processosAlterados.length){
+        let proximo = nextId(processosDB, 101);
+        const payload = processosAlterados.map(p => {
+          if(!p.id) p.id = proximo++;
+          return {
+            id: Number(p.id),
+            aluno_nome: titleUpper(p.aluno || p.aluno_nome),
+            escola_nome: titleUpper(p.escola || p.escola_nome || 'NÃO INFORMADA'),
+            documento_tipo: txt(p.documento || p.documento_tipo || 'HISTÓRICO'),
+            nivel_oferta: txt(p.nivel_oferta || p.ensino || '') || null,
+            modalidade: txt(p.modalidade || '') || null,
+            etapa_atual: normalizarEtapaV36(p.etapa || p.etapa_atual),
+            nte: nteNome(p.nte || 'NTE-26 Salvador')
+          };
+        }).filter(p => p.id && p.aluno_nome);
+        await upsertLotesV36('processos', payload, 'id');
+      }
+    }catch(e){ erros.push('processos: ' + (e.message || JSON.stringify(e))); }
+    return erros;
+  }
+
+  window.processarImportacaoOtimizada = async function(event){
+    const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+    if(!podeImportarV36(u)){
+      alert('Importação permitida apenas para Master, Administrador ou Grupo SEC.');
+      if(event && event.target) event.target.value = '';
+      return;
+    }
+    const arquivo = event?.target?.files?.[0];
+    if(!arquivo) return;
+    const card = document.getElementById('card-progresso-importacao');
+    const label = document.getElementById('label-status-importacao');
+    const barra = document.getElementById('barra-progresso-importacao');
+    const pct = document.getElementById('percentual-importacao-texto');
+    const setProg = (n,msg) => { if(card) card.classList.remove('hidden'); if(barra) barra.style.width=n+'%'; if(pct) pct.innerText=n+'%'; if(label) label.innerText=msg; };
+
+    try{
+      setProg(5, 'Lendo planilha...');
+      const data = await arquivo.arrayBuffer();
+      const wb = XLSX.read(data, { type:'array', cellDates:true });
+      const escolasLidas = [];
+      const processosLidos = [];
+      let linhasTotais = 0;
+
+      wb.SheetNames.forEach(nomeAba => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { defval:'', raw:false });
+        linhasTotais += rows.length;
+        rows.forEach(row => {
+          if(deveSerEscola(row, nomeAba)) escolasLidas.push(converterEscolaV36(row));
+          if(deveSerProcesso(row, nomeAba)) processosLidos.push(converterProcessoV36(row));
+        });
+      });
+
+      setProg(30, `Identificado: ${escolasLidas.length} escolas e ${processosLidos.length} processos em ${linhasTotais} linhas.`);
+
+      let insEsc=0, atuEsc=0, insProc=0, atuProc=0;
+      const escolasAlteradas = [];
+      const processosAlterados = [];
+
+      escolasLidas.forEach(e => {
+        if(!e.cod_mec || !e.nome) return;
+        const idx = (escolasDB||[]).findIndex(x => txt(x.cod_mec) === txt(e.cod_mec));
+        if(idx >= 0){ escolasDB[idx] = { ...escolasDB[idx], ...e, id: escolasDB[idx].id }; escolasAlteradas.push(escolasDB[idx]); atuEsc++; }
+        else { e.id = nextId(escolasDB, 1); escolasDB.push(e); escolasAlteradas.push(e); insEsc++; }
+      });
+      processosLidos.forEach(p => {
+        if(!p.aluno) return;
+        const id = Number(p.id);
+        const idx = id ? (processosDB||[]).findIndex(x => Number(x.id) === id) : -1;
+        if(idx >= 0){ processosDB[idx] = { ...processosDB[idx], ...p, id: processosDB[idx].id }; processosAlterados.push(processosDB[idx]); atuProc++; }
+        else { p.id = nextId(processosDB, 101); processosDB.push(p); processosAlterados.push(p); insProc++; }
+      });
+
+      setProg(65, 'Gravando escolas e processos no Supabase...');
+      const erros = await gravarImportacaoV36(escolasAlteradas, processosAlterados);
+
+      setProg(90, 'Atualizando telas e dashboard...');
+      try{ if(typeof carregarEscolasSupabaseSIGEE === 'function') await carregarEscolasSupabaseSIGEE(); }catch(e){}
+      try{ if(typeof carregarDadosOperacionaisV32 === 'function') await carregarDadosOperacionaisV32(); }catch(e){}
+      try{ if(typeof renderizarListaEscolasBufferMemoria === 'function') renderizarListaEscolasBufferMemoria(); }catch(e){}
+      try{ if(typeof carregarEContarProcessosHorizontais === 'function') carregarEContarProcessosHorizontais(); }catch(e){}
+      try{ if(typeof carregarDadosDashboardReal === 'function') carregarDadosDashboardReal(); }catch(e){}
+      try{ if(typeof registrarLog === 'function') registrarLog(`Importação V36: escolas inseridas ${insEsc}, atualizadas ${atuEsc}; processos inseridos ${insProc}, atualizados ${atuProc}.`); }catch(e){}
+
+      setProg(100, 'Importação concluída.');
+      if(erros.length){
+        alert(`Importação concluída na tela, mas o Supabase recusou parte dos dados:\n\n${erros.join('\n')}\n\nEscolas localizadas: ${escolasLidas.length}. Processos localizados: ${processosLidos.length}.`);
+      } else {
+        alert(`Importação concluída e gravada no Supabase.\n\nEscolas: ${insEsc} inseridas, ${atuEsc} atualizadas.\nProcessos: ${insProc} inseridos, ${atuProc} atualizados.`);
+      }
+    }catch(e){
+      console.error('SIGEE V36 erro na importação:', e);
+      alert('Erro na importação da planilha. Detalhe: ' + (e.message || e));
+    }finally{
+      setTimeout(() => { if(card) card.classList.add('hidden'); if(event?.target) event.target.value=''; }, 900);
+    }
+  };
+
+  try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+})();
+</script>
+
 </body>
 </html>
