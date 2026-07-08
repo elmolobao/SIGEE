@@ -6367,5 +6367,212 @@
 })();
 </script>
 
+
+
+<!-- =====================================================================
+     SIGEE V39 - Correção dos perfis sem alterar o carregamento V38
+     Mantém a rotina de carregamento de escolas, processos e dashboard.
+     Ajusta apenas a matriz de perfis, permissões, opções do cadastro de usuário
+     e seleção global SEC/Master.
+     ===================================================================== -->
+<script>
+(function(){
+  'use strict';
+  const EMAIL_SEC_V39 = 'sec@enova.educacao.ba.gov.br';
+
+  function txt(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function sem(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function up(v){ return sem(v).toUpperCase(); }
+  function low(v){ return txt(v).toLowerCase(); }
+
+  function perfilCanonicoV39(valor){
+    const p = up(valor);
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMINISTR')) return 'Administrador';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    if(p.includes('TECNIC') || p.includes('TÉCNIC')) return 'Tecnico';
+    return txt(valor) || 'Tecnico';
+  }
+
+  function perfilUsuarioV39(u){ return perfilCanonicoV39(u && (u.perfil || u.tipo || u.role)); }
+  function isSECV39(u){ return !!u && (low(u.email)===EMAIL_SEC_V39 || perfilUsuarioV39(u)==='SEC' || up(u.grupo).includes('SEC') || up(u.nte).includes('SEC') || up(u.nte).includes('TODOS OS NTES')); }
+  function isMasterV39(u){ return perfilUsuarioV39(u)==='Master'; }
+  function isAdminV39(u){ return perfilUsuarioV39(u)==='Administrador'; }
+  function isTecnicoV39(u){ return perfilUsuarioV39(u)==='Tecnico'; }
+  function isConsultaV39(u){ return perfilUsuarioV39(u)==='Consulta'; }
+  function isGlobalV39(u){ return isSECV39(u) || isMasterV39(u); }
+  function podeImportarV39(u){ return isGlobalV39(u) || isAdminV39(u); }
+  function podeEditarEscolaV39(u){ return isGlobalV39(u) || isAdminV39(u) || isTecnicoV39(u); }
+  function podeExportarV39(u){ return isGlobalV39(u) || isAdminV39(u); }
+  function podeMovimentarV39(u){ return isGlobalV39(u) || isAdminV39(u) || isTecnicoV39(u); }
+  function podeGerirUsuariosV39(u){ return isGlobalV39(u); }
+  function podeVerLogsV39(u){ return isGlobalV39(u) || isAdminV39(u); }
+
+  function usuarioAtualV39(){ return window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null); }
+
+  function normalizarUsuarioV39(u){
+    if(!u) return u;
+    if(low(u.email) === EMAIL_SEC_V39){
+      u.nome = u.nome || 'USUÁRIO SEC';
+      u.perfil = 'SEC';
+      u.grupo = 'SEC';
+      u.nte = 'SEC - TODOS OS NTEs';
+      u.ativo = u.ativo !== false;
+      u.senha = u.senha || '123';
+      return u;
+    }
+    if(low(u.email) === 'elmo.lobao@enova.educacao.ba.gov.br') u.perfil = 'Master';
+    else u.perfil = perfilCanonicoV39(u.perfil || 'Tecnico');
+    u.nte = u.nte || u.nte_vinculado || u.grupo || 'NTE-26 Salvador';
+    u.senha = u.senha || '123';
+    u.ativo = u.ativo !== false;
+    return u;
+  }
+
+  function garantirUsuariosBaseV39(){
+    try{
+      window.usuariosDB = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB !== 'undefined' && Array.isArray(usuariosDB) ? usuariosDB : []);
+      try{ usuariosDB = window.usuariosDB; }catch(e){}
+      const existe = email => window.usuariosDB.some(u => low(u.email)===low(email));
+      const nextId = base => Math.max(base, 0, ...window.usuariosDB.map(u=>Number(u.id)||0)) + 1;
+      if(!existe(EMAIL_SEC_V39)) window.usuariosDB.push({id:nextId(900000), nome:'USUÁRIO SEC', email:EMAIL_SEC_V39, senha:'123', perfil:'SEC', grupo:'SEC', nte:'SEC - TODOS OS NTEs', ativo:true});
+      if(!existe('administrativo@enova.educacao.ba.gov.br')) window.usuariosDB.push({id:nextId(910000), nome:'USUÁRIO ADMINISTRADOR', email:'administrativo@enova.educacao.ba.gov.br', senha:'123', perfil:'Administrador', nte:'NTE-26 Salvador', ativo:true});
+      if(!existe('consulta@enova.educacao.ba.gov.br')) window.usuariosDB.push({id:nextId(920000), nome:'USUÁRIO CONSULTA', email:'consulta@enova.educacao.ba.gov.br', senha:'123', perfil:'Consulta', nte:'NTE-26 Salvador', ativo:true});
+      window.usuariosDB.forEach(normalizarUsuarioV39);
+    }catch(e){ console.warn('SIGEE V39: não foi possível garantir usuários base.', e); }
+  }
+
+  function atualizarSelectPerfilV39(){
+    const select = document.getElementById('user-form-perfil');
+    if(!select) return;
+    const valorAtual = perfilCanonicoV39(select.value || 'Tecnico');
+    const opcoes = ['SEC','Master','Administrador','Tecnico','Consulta'];
+    select.innerHTML = opcoes.map(p => `<option value="${p}">${p}</option>`).join('');
+    select.value = opcoes.includes(valorAtual) ? valorAtual : 'Tecnico';
+  }
+
+  function aplicarPermissoesV39(){
+    garantirUsuariosBaseV39();
+    const u = normalizarUsuarioV39(usuarioAtualV39());
+    if(u){ window.usuarioLogado = u; try{ usuarioLogado = u; }catch(e){} }
+    atualizarSelectPerfilV39();
+
+    const importar = podeImportarV39(u);
+    const editarEscola = podeEditarEscolaV39(u);
+    const exportar = podeExportarV39(u);
+    const gerirUsuarios = podeGerirUsuariosV39(u);
+    const logs = podeVerLogsV39(u);
+
+    const btnImportar = document.getElementById('btn-importar-dados-master');
+    if(btnImportar) btnImportar.classList.toggle('hidden', !importar);
+    const input = document.getElementById('input-importar-excel');
+    if(input) input.disabled = !importar;
+    document.querySelectorAll('.import-only,.export-only').forEach(el => el.classList.toggle('hidden', !exportar));
+    document.querySelectorAll('[data-sigee-permissao="editar-escola"]').forEach(el => el.classList.toggle('hidden', !editarEscola));
+
+    const menuUsuarios = document.getElementById('menu-usuarios');
+    if(menuUsuarios) menuUsuarios.classList.toggle('hidden', !gerirUsuarios);
+    const menuLogs = document.getElementById('menu-logs');
+    if(menuLogs) menuLogs.classList.toggle('hidden', !logs);
+
+    const nome = document.getElementById('user-nome');
+    const pf = document.getElementById('user-perfil');
+    if(u && nome) nome.innerText = u.nome || '';
+    if(u && pf) pf.innerText = `${perfilUsuarioV39(u)} | ${u.nte || ''}`;
+  }
+
+  // Substitui apenas a leitura do perfil, preservando a rotina de carregamento V38.
+  window.perfilCanonicoSIGEE = function(perfil){ return perfilCanonicoV39(perfil); };
+  try{ perfilCanonicoSIGEE = window.perfilCanonicoSIGEE; }catch(e){}
+  window.isMasterSIGEE = function(){ return isGlobalV39(usuarioAtualV39()); };
+  try{ isMasterSIGEE = window.isMasterSIGEE; }catch(e){}
+  window.isTecnicoRestritoSIGEE = function(){ return !isGlobalV39(usuarioAtualV39()); };
+  try{ isTecnicoRestritoSIGEE = window.isTecnicoRestritoSIGEE; }catch(e){}
+
+  // Mantém nomes usados em versões anteriores.
+  window.SIGEE_PERFIS_V39 = {
+    perfil: perfilUsuarioV39,
+    isSEC: isSECV39,
+    isMaster: isMasterV39,
+    isAdmin: isAdminV39,
+    isTecnico: isTecnicoV39,
+    isConsulta: isConsultaV39,
+    isGlobal: isGlobalV39,
+    podeImportar: podeImportarV39,
+    podeEditarEscola: podeEditarEscolaV39,
+    podeExportar: podeExportarV39,
+    podeMovimentar: podeMovimentarV39,
+    podeGerirUsuarios: podeGerirUsuariosV39,
+    aplicarPermissoes: aplicarPermissoesV39
+  };
+
+  // Garante que o perfil vindo do Supabase não seja convertido indevidamente para Master/Técnico.
+  if(typeof window.usuarioDoSupabaseParaLocalSIGEE === 'function'){
+    const antigoMapUsuario = window.usuarioDoSupabaseParaLocalSIGEE;
+    window.usuarioDoSupabaseParaLocalSIGEE = function(u, indice){
+      const base = antigoMapUsuario(u, indice) || {};
+      base.perfil = perfilCanonicoV39(u?.perfil || u?.tipo || u?.role || base.perfil || 'Tecnico');
+      if(low(base.email) === 'elmo.lobao@enova.educacao.ba.gov.br') base.perfil = 'Master';
+      if(low(base.email) === EMAIL_SEC_V39) base.perfil = 'SEC';
+      base.nte = base.nte || u?.nte || u?.nte_vinculado || u?.grupo || 'NTE-26 Salvador';
+      return normalizarUsuarioV39(base);
+    };
+    try{ usuarioDoSupabaseParaLocalSIGEE = window.usuarioDoSupabaseParaLocalSIGEE; }catch(e){}
+  }
+
+  // Master/SEC veem técnicos de todos os NTEs; Admin/Técnico veem apenas o NTE vinculado.
+  window.preencherSelectTecnicosPorNte = function(selectId, nteFiltro){
+    garantirUsuariosBaseV39();
+    const select = document.getElementById(selectId);
+    if(!select) return;
+    const u = usuarioAtualV39();
+    const global = isGlobalV39(u);
+    const nteBase = txt(nteFiltro || u?.nte || '');
+    function norm(v){
+      const m = txt(v).match(/NTE\s*[- ]?\s*(\d{1,2})/i);
+      return m ? 'NTE'+Number(m[1]) : up(v).replace(/[^A-Z0-9]/g,'');
+    }
+    let lista = (window.usuariosDB || []).map(normalizarUsuarioV39).filter(op => op && op.ativo !== false && !isConsultaV39(op) && !isSECV39(op));
+    if(!global) lista = lista.filter(op => norm(op.nte) === norm(nteBase || u?.nte));
+    select.innerHTML = '<option value="">-- Selecione o Servidor --</option>';
+    lista.sort((a,b)=>txt(a.nome).localeCompare(txt(b.nome),'pt-BR')).forEach(op => {
+      const nte = op.nte ? ` - ${op.nte}` : '';
+      select.innerHTML += `<option value="${op.nome}">${op.nome}${global ? nte : ''}</option>`;
+    });
+  };
+  try{ preencherSelectTecnicosPorNte = window.preencherSelectTecnicosPorNte; }catch(e){}
+
+  // Reaplica permissões após login/navegação/carregamento, sem tocar na carga dos dados.
+  const oldHandle = window.handleLogin;
+  if(typeof oldHandle === 'function'){
+    window.handleLogin = async function(event){
+      const r = await oldHandle.apply(this, arguments);
+      garantirUsuariosBaseV39();
+      if(window.usuarioLogado){ normalizarUsuarioV39(window.usuarioLogado); try{ usuarioLogado = window.usuarioLogado; }catch(e){} }
+      aplicarPermissoesV39();
+      return r;
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+
+  const oldNavegar = window.navegar;
+  if(typeof oldNavegar === 'function'){
+    window.navegar = function(){ const r = oldNavegar.apply(this, arguments); setTimeout(aplicarPermissoesV39, 60); return r; };
+    try{ navegar = window.navegar; }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    garantirUsuariosBaseV39();
+    atualizarSelectPerfilV39();
+    setTimeout(aplicarPermissoesV39, 600);
+    setTimeout(aplicarPermissoesV39, 1800);
+  });
+
+  setTimeout(function(){ garantirUsuariosBaseV39(); aplicarPermissoesV39(); }, 2500);
+})();
+</script>
+
 </body>
 </html>
