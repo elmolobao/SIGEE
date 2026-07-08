@@ -4955,4 +4955,250 @@
 
 </script>
 
+
+
+<script>
+/* ==========================================================================
+   SIGEE V34 - Carregamento de banco por perfil + permissões de importação
+   - Importação permanece SOMENTE para Master, Administrador e Grupo SEC.
+   - Técnico e Consulta NÃO importam planilhas.
+   - Corrige carregamento de escolas/processos para Técnico, Administrador e Consulta.
+   - Reforça renderização após sincronização Supabase para evitar "0 registros / banco pendente".
+   ========================================================================== */
+(function(){
+  'use strict';
+
+  const GRUPO_SEC = 'SEC - TODOS OS NTES';
+  const EMAIL_SEC = 'sec@enova.educacao.ba.gov.br';
+
+  function txt(v){ return (v===undefined||v===null) ? '' : String(v).trim(); }
+  function sem(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
+  function email(v){ return txt(v).toLowerCase(); }
+  function perfil(v){
+    const p = sem(v || 'Tecnico');
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    if(p.includes('SEC')) return 'Administrador';
+    return 'Tecnico';
+  }
+  function numeroNte(v){
+    const m = txt(v).match(/NTE[-\s]*(\d{1,2})/i);
+    return m ? Number(m[1]) : null;
+  }
+  function ntePorId(id){
+    const n = Number(id);
+    if(!n) return '';
+    const lista = (typeof LISTA_OFICIAL_27_NTES !== 'undefined' && Array.isArray(LISTA_OFICIAL_27_NTES)) ? LISTA_OFICIAL_27_NTES : [];
+    return lista.find(x => numeroNte(x) === n) || `NTE-${String(n).padStart(2,'0')}`;
+  }
+  function isSEC(u){
+    const e = email(u && u.email);
+    const n = sem(u && (u.nte || u.grupo || u.nte_nome || u.nte_vinculado || ''));
+    return e === EMAIL_SEC || n === 'SEC' || n.includes('SEC -') || n.includes('TODOS OS NTES') || n === 'GLOBAL';
+  }
+  function isGlobal(u){ return !!u && (perfil(u.perfil) === 'Master' || isSEC(u)); }
+  function podeImportar(u){
+    const p = perfil(u && u.perfil);
+    return p === 'Master' || p === 'Administrador' || isSEC(u);
+  }
+  function nteUsuario(u){
+    if(!u) return 'NTE-26 Salvador';
+    if(isSEC(u)) return GRUPO_SEC;
+    return txt(u.nte || u.nte_nome || u.nte_vinculado || ntePorId(u.nte_id) || 'NTE-26 Salvador');
+  }
+  function nteItem(item){
+    if(!item) return '';
+    return txt(item.nte || item.nte_nome || item.nte_vinculado || item.nucleo || item.nte_descricao || ntePorId(item.nte_id) || '');
+  }
+  function nteIgual(a,b){
+    if(!a || !b) return false;
+    if(isSEC({nte:a}) || isSEC({nte:b})) return true;
+    const na = numeroNte(a), nb = numeroNte(b);
+    if(na && nb) return na === nb;
+    return sem(a).replace(/\s+/g,'') === sem(b).replace(/\s+/g,'');
+  }
+  function filtrarPorPerfil(lista){
+    const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+    if(!Array.isArray(lista)) return [];
+    if(isGlobal(u)) return lista;
+    const nte = nteUsuario(u);
+    return lista.filter(item => nteIgual(nteItem(item), nte));
+  }
+  function garantirSec(){
+    try{
+      if(Array.isArray(LISTA_OFICIAL_27_NTES) && !LISTA_OFICIAL_27_NTES.some(n=>sem(n).includes('SEC - TODOS'))) LISTA_OFICIAL_27_NTES.unshift(GRUPO_SEC);
+      if(Array.isArray(usuariosDB) && !usuariosDB.some(u=>email(u.email)===EMAIL_SEC)) usuariosDB.push({id:990001,nome:'USUÁRIO SEC',email:EMAIL_SEC,senha:'123',perfil:'Administrador',nte:GRUPO_SEC,grupo:'SEC',ativo:true});
+    }catch(e){}
+  }
+
+  window.SIGEE_V34 = { perfil, isSEC, isGlobal, podeImportar, nteUsuario, nteItem, nteIgual, filtrarPorPerfil };
+
+  function aplicarPermissoes(){
+    garantirSec();
+    const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+    const btnImportar = document.getElementById('btn-importar-dados-master');
+    if(btnImportar) btnImportar.classList.toggle('hidden', !podeImportar(u));
+    const input = document.getElementById('input-importar-excel');
+    if(input) input.disabled = !podeImportar(u);
+    document.querySelectorAll('[data-master-only-import-processos], .btn-importar-processos-master, .btn-importar-processos-admin')
+      .forEach(el => el.classList.toggle('hidden', !podeImportar(u)));
+    const menuUsuarios = document.getElementById('menu-usuarios');
+    if(menuUsuarios) menuUsuarios.classList.toggle('hidden', !isGlobal(u));
+    const menuLogs = document.getElementById('menu-logs');
+    if(menuLogs) menuLogs.classList.toggle('hidden', !(isGlobal(u) || perfil(u && u.perfil)==='Administrador'));
+  }
+  window.aplicarPermissoesV34 = aplicarPermissoes;
+
+  async function carregarOperacionalSilencioso(){
+    try{
+      if(typeof carregarDadosOperacionaisV32 === 'function') await carregarDadosOperacionaisV32();
+      else if(typeof carregarTodasTabelasSupabaseSIGEE === 'function') await carregarTodasTabelasSupabaseSIGEE(true);
+      else if(typeof sincronizarSupabaseSegundoPlanoSIGEE === 'function') await sincronizarSupabaseSegundoPlanoSIGEE();
+      try{ sigEESupabaseOnline = true; }catch(e){}
+      return true;
+    }catch(e){
+      console.warn('SIGEE V34: falha ao carregar dados operacionais:', e);
+      return false;
+    }
+  }
+  window.carregarOperacionalSilenciosoV34 = carregarOperacionalSilencioso;
+
+  function atualizarInfoEscolas(qtd){
+    const el = document.getElementById('info-quantidade-escolas-carregadas');
+    if(!el) return;
+    const status = (typeof sigEESupabaseOnline !== 'undefined' && sigEESupabaseOnline) ? 'Supabase online' : 'sincronizando Supabase';
+    el.innerText = `Exibindo: ${qtd} registros | Banco: ${status}`;
+  }
+
+  // Corrige catálogo para Técnico/Administrador/Consulta após sincronização.
+  window.renderizarListaEscolasBufferMemoria = function(){
+    const corpo = document.getElementById('tabela-escolas-corpo');
+    if(!corpo) return;
+    corpo.innerHTML = '';
+    let filtradas = filtrarPorPerfil(escolasDB || []);
+    const busca = (document.getElementById('busca-escola')?.value || '').toLowerCase().trim();
+    if(busca){
+      filtradas = filtradas.filter(e => [e.cod_mec,e.nome,e.nome_escola,e.municipio,e.nte,e.dependencia,e.dependencia_adm,e.situacao,e.situacao_funcional,e.acervo,e.status_acervo].some(v=>String(v||'').toLowerCase().includes(busca)));
+    }
+    atualizarInfoEscolas(filtradas.length);
+    const totalPorPagina = (typeof totalPorPaginaEscola !== 'undefined') ? totalPorPaginaEscola : 8;
+    let pagina = (typeof paginaEscolaAtual !== 'undefined') ? paginaEscolaAtual : 1;
+    const paginasTotais = Math.max(1, Math.ceil(filtradas.length / totalPorPagina));
+    if(pagina > paginasTotais) pagina = paginasTotais;
+    try{ paginaEscolaAtual = pagina; }catch(e){}
+    const inicio = (pagina - 1) * totalPorPagina;
+    filtradas.slice(inicio, inicio + totalPorPagina).forEach(e => {
+      const situacao = txt(e.situacao || e.situacao_funcional || '').toUpperCase();
+      const acervo = txt(e.acervo || e.status_acervo || '').toUpperCase();
+      const sitClasse = situacao.includes('ATIV') ? 'text-green-300' : 'text-red-300';
+      const acervoClasse = acervo.includes('RECOLH') && !acervo.includes('NÃO') && !acervo.includes('NAO') ? 'text-green-300' : 'text-red-300';
+      corpo.innerHTML += `
+        <tr class="hover:bg-white/10 text-[11px] text-white border-b border-white/10">
+          <td class="p-3 font-mono font-bold">${txt(e.cod_mec)}</td>
+          <td class="p-3 font-bold uppercase">${txt(e.nome || e.nome_escola)}</td>
+          <td class="p-3 uppercase font-medium">${txt(e.municipio)}</td>
+          <td class="p-3 font-semibold">${txt(e.nte)}<br><span class="text-[9px] bg-white/10 font-bold px-1 rounded">${txt(e.dependencia || e.dependencia_adm)}</span></td>
+          <td class="p-3"><span class="px-1.5 py-0.5 font-black rounded text-[10px] bg-black/20 ${sitClasse}">${situacao || '-'}</span></td>
+          <td class="p-3"><span class="px-1.5 py-0.5 font-black rounded text-[10px] bg-black/20 ${acervoClasse}">${acervo || '-'}</span></td>
+          <td class="p-3 text-center"><button class="px-2 py-1 rounded bg-cyan-600/30 text-cyan-100 font-black">Alterar</button></td>
+        </tr>`;
+    });
+    const pag = document.getElementById('txt-escola-paginacao'); if(pag) pag.innerText = `Página ${pagina} de ${paginasTotais}`;
+    const ant = document.getElementById('btn-escola-anterior'); if(ant) ant.disabled = pagina <= 1;
+    const prox = document.getElementById('btn-escola-proxima'); if(prox) prox.disabled = pagina >= paginasTotais;
+
+    // Se não carregou nada para o usuário, tenta buscar em segundo plano uma vez, sem travar a tela.
+    if(!filtradas.length && !window.__SIGEE_V34_RECARREGANDO_ESCOLAS){
+      window.__SIGEE_V34_RECARREGANDO_ESCOLAS = true;
+      atualizarInfoEscolas(0);
+      setTimeout(async()=>{
+        await carregarOperacionalSilencioso();
+        window.__SIGEE_V34_RECARREGANDO_ESCOLAS = false;
+        renderizarListaEscolasBufferMemoria();
+      }, 100);
+    }
+  };
+  try{ renderizarListaEscolasBufferMemoria = window.renderizarListaEscolasBufferMemoria; }catch(e){}
+
+  // Reforça processos para Técnico/Administrador/Consulta.
+  const renderProcAnterior = window.renderizarProcessosFlutuantes || (typeof renderizarProcessosFlutuantes !== 'undefined' ? renderizarProcessosFlutuantes : null);
+  window.renderizarProcessosFlutuantes = function(){
+    try{
+      const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+      if(isGlobal(u) && renderProcAnterior) return renderProcAnterior.apply(this, arguments);
+      const todos = Array.isArray(processosDB) ? processosDB.slice() : [];
+      const original = processosDB;
+      processosDB = filtrarPorPerfil(todos);
+      const r = renderProcAnterior ? renderProcAnterior.apply(this, arguments) : undefined;
+      processosDB = original;
+      return r;
+    }catch(e){
+      console.warn('SIGEE V34 render processos:', e);
+      if(renderProcAnterior) return renderProcAnterior.apply(this, arguments);
+    }
+  };
+  try{ renderizarProcessosFlutuantes = window.renderizarProcessosFlutuantes; }catch(e){}
+
+  // Garante que técnico NÃO importe, conforme regra anterior. Se quiser liberar Técnico, altere aqui.
+  const importarOriginal = window.processarImportacaoOtimizada || (typeof processarImportacaoOtimizada !== 'undefined' ? processarImportacaoOtimizada : null);
+  if(importarOriginal){
+    window.processarImportacaoOtimizada = function(event){
+      const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+      if(!podeImportar(u)){
+        alert('Importação permitida apenas para Master, Administrador ou Grupo SEC. O perfil Técnico pode consultar e movimentar processos do NTE, mas não importar planilhas.');
+        if(event && event.target) event.target.value = '';
+        return;
+      }
+      return importarOriginal.apply(this, arguments);
+    };
+    try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+  }
+
+  // Ao entrar/navegar, sincroniza novamente e atualiza tela atual.
+  const navegarAnterior = window.navegar || (typeof navegar !== 'undefined' ? navegar : null);
+  if(navegarAnterior){
+    window.navegar = function(aba){
+      const r = navegarAnterior.apply(this, arguments);
+      aplicarPermissoes();
+      if(aba === 'escolas'){
+        setTimeout(()=>{ try{ renderizarListaEscolasBufferMemoria(); }catch(e){} }, 50);
+        setTimeout(async()=>{ await carregarOperacionalSilencioso(); aplicarPermissoes(); try{ renderizarListaEscolasBufferMemoria(); }catch(e){} }, 300);
+      }
+      if(aba === 'processos'){
+        setTimeout(async()=>{ await carregarOperacionalSilencioso(); aplicarPermissoes(); try{ carregarEContarProcessosHorizontais(); }catch(e){} }, 300);
+      }
+      if(aba === 'painel'){
+        setTimeout(async()=>{ await carregarOperacionalSilencioso(); aplicarPermissoes(); try{ carregarDadosDashboardReal(); }catch(e){} }, 300);
+      }
+      return r;
+    };
+    try{ navegar = window.navegar; }catch(e){}
+  }
+
+  const loginAnterior = window.handleLogin || (typeof handleLogin !== 'undefined' ? handleLogin : null);
+  if(loginAnterior){
+    window.handleLogin = async function(event){
+      const r = await loginAnterior.apply(this, arguments);
+      aplicarPermissoes();
+      setTimeout(async()=>{
+        await carregarOperacionalSilencioso();
+        aplicarPermissoes();
+        try{ carregarDadosDashboardReal(); }catch(e){}
+        try{ carregarEContarProcessosHorizontais(); }catch(e){}
+        try{ if(!document.getElementById('aba-escolas')?.classList.contains('hidden')) renderizarListaEscolasBufferMemoria(); }catch(e){}
+      }, 250);
+      return r;
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+
+  window.addEventListener('load', function(){
+    garantirSec();
+    setTimeout(aplicarPermissoes, 100);
+    setTimeout(async()=>{ await carregarOperacionalSilencioso(); aplicarPermissoes(); }, 600);
+  });
+})();
+</script>
 </body>
+</html>
