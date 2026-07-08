@@ -7326,5 +7326,329 @@
 })();
 </script>
 
+
+
+<script>
+/* ==========================================================
+   SIGEE V43 - Correção definitiva de permissões por PERFIL
+   Mantém o carregamento V38/V42 e impede que NTE/Grupo SEC
+   conceda permissões administrativas a usuário Técnico.
+   ========================================================== */
+(function(){
+  'use strict';
+  const EMAIL_SEC = 'sec@enova.educacao.ba.gov.br';
+  const GRUPO_SEC = 'SEC - TODOS OS NTEs';
+  const KEY_COMPLETO = 'SIGEE_USUARIOS_COMPLETO_V41';
+
+  function texto(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function semAcento(v){ return texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function up(v){ return semAcento(v).toUpperCase(); }
+  function low(v){ return texto(v).toLowerCase(); }
+  function perfilOficial(v){
+    const p = up(v || 'Tecnico');
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    if(p.includes('TECNIC')) return 'Tecnico';
+    return 'Tecnico';
+  }
+  function usuario(){ return window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null); }
+  function perfilAtual(){ return perfilOficial(usuario() && usuario().perfil); }
+  function isSEC(){ const u=usuario(); return !!u && (low(u.email)===EMAIL_SEC || perfilAtual()==='SEC'); }
+  function isMaster(){ return perfilAtual()==='Master'; }
+  function isAdmin(){ return perfilAtual()==='Administrador'; }
+  function isTecnico(){ return perfilAtual()==='Tecnico'; }
+  function isConsulta(){ return perfilAtual()==='Consulta'; }
+  function isGlobal(){ return isSEC() || isMaster(); }
+  function podeUsuarios(){ return isSEC() || isMaster(); }
+  function podeLogs(){ return isSEC() || isMaster() || isAdmin(); }
+  function podeImportar(){ return isSEC() || isMaster() || isAdmin(); }
+  function podeExportar(){ return isSEC() || isMaster() || isAdmin(); }
+  function podeCadastrarEditarEscola(){ return isSEC() || isMaster() || isAdmin() || isTecnico(); }
+  function podeMovimentar(){ return isSEC() || isMaster() || isAdmin() || isTecnico(); }
+  function podeNovaSolicitacao(){ return isSEC() || isMaster() || isAdmin() || isTecnico(); }
+
+  function aplicarPermissoesV43(){
+    const u = usuario();
+    if(!u) return;
+    u.perfil = perfilOficial(u.perfil);
+    if(u.perfil === 'SEC') u.nte = GRUPO_SEC;
+
+    const nome = document.getElementById('user-nome');
+    if(nome) nome.innerText = u.nome || '';
+    const perf = document.getElementById('user-perfil');
+    if(perf) perf.innerText = `${u.perfil} | ${u.nte || ''}`;
+
+    const menuUsuarios = document.getElementById('menu-usuarios');
+    if(menuUsuarios) menuUsuarios.classList.toggle('hidden', !podeUsuarios());
+
+    const menuLogs = document.getElementById('menu-logs');
+    if(menuLogs) menuLogs.classList.toggle('hidden', !podeLogs());
+
+    const btnImportar = document.getElementById('btn-importar-dados-master');
+    if(btnImportar) btnImportar.classList.toggle('hidden', !podeImportar());
+    const inputImportar = document.getElementById('input-importar-excel');
+    if(inputImportar) inputImportar.disabled = !podeImportar();
+
+    document.querySelectorAll('.export-only, [data-sigee-exportar]').forEach(el=>el.classList.toggle('hidden', !podeExportar()));
+    document.querySelectorAll('.import-only, [data-sigee-importar]').forEach(el=>el.classList.toggle('hidden', !podeImportar()));
+    document.querySelectorAll('button[onclick="abrirModalNovaEscola()"], .btn-nova-escola').forEach(el=>el.classList.toggle('hidden', !podeCadastrarEditarEscola()));
+    document.querySelectorAll('[data-sigee-permissao="editar-escola"], .btn-editar-escola').forEach(el=>el.classList.toggle('hidden', !podeCadastrarEditarEscola()));
+    document.querySelectorAll('button[onclick="abrirFormularioNovaSolicitacao()"], .btn-nova-solicitacao').forEach(el=>el.classList.toggle('hidden', !podeNovaSolicitacao()));
+
+    const abaUsuarios = document.getElementById('aba-usuarios');
+    if(abaUsuarios && !abaUsuarios.classList.contains('hidden') && !podeUsuarios()){
+      try{ navegar('painel'); }catch(e){ abaUsuarios.classList.add('hidden'); document.getElementById('aba-painel')?.classList.remove('hidden'); }
+    }
+    const abaLogs = document.getElementById('aba-logs');
+    if(abaLogs && !abaLogs.classList.contains('hidden') && !podeLogs()){
+      try{ navegar('painel'); }catch(e){ abaLogs.classList.add('hidden'); document.getElementById('aba-painel')?.classList.remove('hidden'); }
+    }
+  }
+
+  // Bloqueia navegação indevida, mesmo se algum botão antigo ficar visível por cache.
+  const navegarOriginalV43 = window.navegar || (typeof navegar !== 'undefined' ? navegar : null);
+  window.navegar = function(aba){
+    if(aba === 'usuarios' && !podeUsuarios()) { alert('Seu perfil não possui permissão para acessar Controle de Usuários.'); aba = 'painel'; }
+    if(aba === 'logs' && !podeLogs()) { alert('Seu perfil não possui permissão para acessar Aba de Registros (Logs).'); aba = 'painel'; }
+    const r = (typeof navegarOriginalV43 === 'function') ? navegarOriginalV43.call(this, aba) : undefined;
+    setTimeout(aplicarPermissoesV43, 20);
+    setTimeout(aplicarPermissoesV43, 250);
+    return r;
+  };
+  try{ navegar = window.navegar; }catch(e){}
+
+  // Bloqueia importação para Técnico/Consulta, independentemente do NTE ser SEC.
+  const importarOriginalV43 = window.processarImportacaoOtimizada || (typeof processarImportacaoOtimizada !== 'undefined' ? processarImportacaoOtimizada : null);
+  if(typeof importarOriginalV43 === 'function'){
+    window.processarImportacaoOtimizada = function(event){
+      if(!podeImportar()){
+        alert('Importação permitida apenas para SEC, Master e Administrador.');
+        if(event && event.target) event.target.value = '';
+        return false;
+      }
+      return importarOriginalV43.apply(this, arguments);
+    };
+    try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+  }
+
+  // Bloqueia exportação para Técnico/Consulta.
+  window.perfilExportadorSIGEE = function(){ return podeExportar(); };
+
+  // Bloqueia renderização da lista de usuários para quem não pode acessar.
+  const carregarUsuariosOriginalV43 = window.carregarListaUsuarios || (typeof carregarListaUsuarios !== 'undefined' ? carregarListaUsuarios : null);
+  window.carregarListaUsuarios = function(){
+    if(!podeUsuarios()){
+      const corpo = document.getElementById('tabela-usuarios-corpo');
+      if(corpo) corpo.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-red-300 font-bold">Acesso restrito aos perfis SEC e Master.</td></tr>';
+      return;
+    }
+    return (typeof carregarUsuariosOriginalV43 === 'function') ? carregarUsuariosOriginalV43.apply(this, arguments) : undefined;
+  };
+  try{ carregarListaUsuarios = window.carregarListaUsuarios; }catch(e){}
+
+  // Compatibilidade: substitui helpers globais usados por camadas antigas.
+  window.SIGEE_PERMISSOES_V43 = {perfilOficial, aplicarPermissoesV43, podeUsuarios, podeLogs, podeImportar, podeExportar, isGlobal};
+  window.perfilCanonicoSIGEE = perfilOficial;
+  try{ perfilCanonicoSIGEE = perfilOficial; }catch(e){}
+
+  const loginOriginalV43 = window.handleLogin || (typeof handleLogin !== 'undefined' ? handleLogin : null);
+  if(typeof loginOriginalV43 === 'function'){
+    window.handleLogin = async function(event){
+      const r = await loginOriginalV43.apply(this, arguments);
+      setTimeout(aplicarPermissoesV43, 30);
+      setTimeout(aplicarPermissoesV43, 400);
+      setTimeout(aplicarPermissoesV43, 1200);
+      return r;
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    aplicarPermissoesV43();
+    setTimeout(aplicarPermissoesV43, 500);
+    setTimeout(aplicarPermissoesV43, 1500);
+  });
+  setInterval(aplicarPermissoesV43, 5000);
+})();
+</script>
+
+
+<script>
+/* =========================================================
+   SIGEE V44 - MENU ESTAVEL E PERMISSOES DEFINITIVAS
+   Mantem carregamento V38+ e corrige reexibicao indevida
+   de menus/botoes quando o usuario Tecnico possui NTE SEC.
+   ========================================================= */
+(function(){
+  const GRUPO_SEC_V44 = 'SEC - TODOS OS NTEs';
+  const EMAIL_SEC_V44 = 'sec@enova.educacao.ba.gov.br';
+  function txt(v){ return (v==null?'':String(v)); }
+  function up(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim(); }
+  function user(){ return window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null); }
+  function perfil(v){
+    const p = up(v || (user() && user().perfil));
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    if(p.includes('TECNIC')) return 'Tecnico';
+    return 'Tecnico';
+  }
+  function isSEC(u=user()){ return !!u && (perfil(u.perfil)==='SEC' || txt(u.email).toLowerCase()===EMAIL_SEC_V44); }
+  function isMaster(u=user()){ return perfil(u && u.perfil)==='Master'; }
+  function isAdmin(u=user()){ return perfil(u && u.perfil)==='Administrador'; }
+  function isTecnico(u=user()){ return perfil(u && u.perfil)==='Tecnico'; }
+  function isConsulta(u=user()){ return perfil(u && u.perfil)==='Consulta'; }
+  function global(u=user()){ return isSEC(u) || isMaster(u); }
+  function canUsers(u=user()){ return isSEC(u) || isMaster(u); }
+  function canLogs(u=user()){ return isSEC(u) || isMaster(u) || isAdmin(u); }
+  function canImport(u=user()){ return isSEC(u) || isMaster(u) || isAdmin(u); }
+  function canExport(u=user()){ return isSEC(u) || isMaster(u) || isAdmin(u); }
+  function canEditSchool(u=user()){ return isSEC(u) || isMaster(u) || isAdmin(u) || isTecnico(u); }
+  function canFlow(u=user()){ return isSEC(u) || isMaster(u) || isAdmin(u) || isTecnico(u); }
+  function canNewRequest(u=user()){ return canFlow(u); }
+
+  // IMPORTANTE: NTE SEC sozinho nao transforma Tecnico em global.
+  window.isAcessoGlobalSIGEE = function(u){ return global(u || user()); };
+  window.isMasterSIGEE = function(){ return isMaster(user()) || isSEC(user()); };
+  window.isTecnicoRestritoSIGEE = function(){ return !global(user()); };
+  window.perfilCanonicoSIGEE = perfil;
+  try { isAcessoGlobalSIGEE = window.isAcessoGlobalSIGEE; } catch(e) {}
+  try { isMasterSIGEE = window.isMasterSIGEE; } catch(e) {}
+  try { isTecnicoRestritoSIGEE = window.isTecnicoRestritoSIGEE; } catch(e) {}
+  try { perfilCanonicoSIGEE = perfil; } catch(e) {}
+
+  function setHidden(el, hide){ if(el) el.classList.toggle('hidden', !!hide); }
+  function lockButton(el, blocked){
+    if(!el) return;
+    el.classList.toggle('hidden', !!blocked);
+    if('disabled' in el) el.disabled = !!blocked;
+    if(blocked) el.setAttribute('aria-hidden','true'); else el.removeAttribute('aria-hidden');
+  }
+
+  function aplicarPermissoesV44(){
+    const u = user();
+    if(!u) return;
+    u.perfil = perfil(u.perfil);
+    if(isSEC(u)) u.nte = GRUPO_SEC_V44;
+
+    document.body.dataset.sigeePerfil = u.perfil;
+    document.body.classList.toggle('sigee-perfil-global', global(u));
+    document.body.classList.toggle('sigee-perfil-tecnico', isTecnico(u));
+    document.body.classList.toggle('sigee-perfil-consulta', isConsulta(u));
+    document.body.classList.toggle('sigee-perfil-admin', isAdmin(u));
+
+    const nome = document.getElementById('user-nome');
+    if(nome) nome.innerText = u.nome || '';
+    const perf = document.getElementById('user-perfil');
+    if(perf) perf.innerText = `${u.perfil} | ${u.nte || ''}`;
+
+    setHidden(document.getElementById('menu-usuarios'), !canUsers(u));
+    setHidden(document.getElementById('menu-logs'), !canLogs(u));
+
+    lockButton(document.getElementById('btn-importar-dados-master'), !canImport(u));
+    const input = document.getElementById('input-importar-excel');
+    if(input) input.disabled = !canImport(u);
+
+    // Exportacao deve sumir imediatamente para Tecnico/Consulta.
+    document.querySelectorAll('.export-only, [data-sigee-exportar], button[onclick*="exportar"], button[onclick*="Exportar"], button[id*="export"], button[id*="Export"]').forEach(el=>{
+      const texto = up(el.innerText || el.textContent || el.id || '');
+      if(texto.includes('EXPORT')) lockButton(el, !canExport(u));
+    });
+
+    document.querySelectorAll('.import-only, [data-sigee-importar]').forEach(el=>lockButton(el, !canImport(u)));
+    document.querySelectorAll('button[onclick="abrirModalNovaEscola()"], .btn-nova-escola').forEach(el=>lockButton(el, !canEditSchool(u)));
+    document.querySelectorAll('[data-sigee-permissao="editar-escola"], .btn-editar-escola').forEach(el=>lockButton(el, !canEditSchool(u)));
+    document.querySelectorAll('button[onclick="abrirFormularioNovaSolicitacao()"], .btn-nova-solicitacao').forEach(el=>lockButton(el, !canNewRequest(u)));
+
+    const abaUsuarios = document.getElementById('aba-usuarios');
+    if(abaUsuarios && !abaUsuarios.classList.contains('hidden') && !canUsers(u)){
+      try{ window.navegar('painel'); }catch(e){ abaUsuarios.classList.add('hidden'); document.getElementById('aba-painel')?.classList.remove('hidden'); }
+    }
+    const abaLogs = document.getElementById('aba-logs');
+    if(abaLogs && !abaLogs.classList.contains('hidden') && !canLogs(u)){
+      try{ window.navegar('painel'); }catch(e){ abaLogs.classList.add('hidden'); document.getElementById('aba-painel')?.classList.remove('hidden'); }
+    }
+  }
+
+  // Substitui navegacao antiga e reaplica permissoes imediatamente depois de renderizacoes.
+  const navPrev = window.navegar || (typeof navegar !== 'undefined' ? navegar : null);
+  window.navegar = function(aba){
+    const u = user();
+    if(aba === 'usuarios' && !canUsers(u)){ alert('Acesso ao Controle de Usuários permitido apenas para SEC e Master.'); aba = 'painel'; }
+    if(aba === 'logs' && !canLogs(u)){ alert('Acesso aos Logs permitido apenas para SEC, Master e Administrador.'); aba = 'painel'; }
+    const r = (typeof navPrev === 'function') ? navPrev.call(this, aba) : undefined;
+    aplicarPermissoesV44();
+    setTimeout(aplicarPermissoesV44, 0);
+    setTimeout(aplicarPermissoesV44, 80);
+    setTimeout(aplicarPermissoesV44, 300);
+    return r;
+  };
+  try{ navegar = window.navegar; }catch(e){}
+
+  // Reforca login e importacao.
+  const loginPrev = window.handleLogin || (typeof handleLogin !== 'undefined' ? handleLogin : null);
+  if(typeof loginPrev === 'function'){
+    window.handleLogin = async function(){
+      const r = await loginPrev.apply(this, arguments);
+      aplicarPermissoesV44();
+      setTimeout(aplicarPermissoesV44, 50);
+      setTimeout(aplicarPermissoesV44, 500);
+      return r;
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+  const impPrev = window.processarImportacaoOtimizada || (typeof processarImportacaoOtimizada !== 'undefined' ? processarImportacaoOtimizada : null);
+  if(typeof impPrev === 'function'){
+    window.processarImportacaoOtimizada = function(event){
+      if(!canImport(user())){
+        alert('Importação permitida apenas para SEC, Master e Administrador.');
+        if(event && event.target) event.target.value = '';
+        return false;
+      }
+      return impPrev.apply(this, arguments);
+    };
+    try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+  }
+
+  // Observador impede que scripts antigos voltem a exibir menus/botoes proibidos.
+  let t=null;
+  const obs = new MutationObserver(()=>{
+    clearTimeout(t); t=setTimeout(aplicarPermissoesV44, 15);
+  });
+  document.addEventListener('DOMContentLoaded', ()=>{
+    obs.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['class','style']});
+    aplicarPermissoesV44();
+    setTimeout(aplicarPermissoesV44, 300);
+    setTimeout(aplicarPermissoesV44, 1200);
+  });
+  window.addEventListener('load', ()=>setTimeout(aplicarPermissoesV44, 100));
+  setInterval(aplicarPermissoesV44, 1200);
+
+  window.SIGEE_PERMISSOES_V44 = {perfil, isSEC, isMaster, isAdmin, isTecnico, isConsulta, global, canUsers, canLogs, canImport, canExport, aplicarPermissoesV44};
+})();
+</script>
+<style>
+/* V44: trava visual para Tecnico/Consulta mesmo se camadas antigas tentarem exibir. */
+body.sigee-perfil-tecnico #menu-usuarios,
+body.sigee-perfil-tecnico #menu-logs,
+body.sigee-perfil-consulta #menu-usuarios,
+body.sigee-perfil-consulta #menu-logs,
+body.sigee-perfil-tecnico .export-only,
+body.sigee-perfil-consulta .export-only,
+body.sigee-perfil-tecnico [data-sigee-exportar],
+body.sigee-perfil-consulta [data-sigee-exportar],
+body.sigee-perfil-tecnico .import-only,
+body.sigee-perfil-consulta .import-only,
+body.sigee-perfil-tecnico [data-sigee-importar],
+body.sigee-perfil-consulta [data-sigee-importar],
+body.sigee-perfil-tecnico #btn-importar-dados-master,
+body.sigee-perfil-consulta #btn-importar-dados-master {
+  display: none !important;
+}
+</style>
+
 </body>
 </html>
