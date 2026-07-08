@@ -7650,5 +7650,291 @@ body.sigee-perfil-consulta #btn-importar-dados-master {
 }
 </style>
 
+
+<!-- =====================================================================
+     SIGEE V45 - Permissões Master, gestão de processos e edição limitada
+     Preserva V38/V44: carregamento, Supabase, layout, logs e permissões.
+     ===================================================================== -->
+<script>
+(function(){
+  'use strict';
+  const ETAPAS_V45 = ['Desarquivamento','Análise','Pendência','Digitação','Conferência','Assinatura','Aguardando Retirada','Retirado'];
+  const GRUPO_SEC_V45 = 'SEC - TODOS OS NTEs';
+
+  function txt(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function sem(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function up(v){ return sem(v).toUpperCase(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function hojeBR(){ return new Date().toLocaleDateString('pt-BR'); }
+  function user(){ return window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null); }
+  function perfil(u){
+    const p = up(u && u.perfil || 'Tecnico');
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    return 'Tecnico';
+  }
+  function isSEC(u){ return perfil(u)==='SEC' || low(u && u.email)==='sec@enova.educacao.ba.gov.br'; }
+  function isMaster(u){ return perfil(u)==='Master'; }
+  function isAdmin(u){ return perfil(u)==='Administrador'; }
+  function isTecnico(u){ return perfil(u)==='Tecnico'; }
+  function isConsulta(u){ return perfil(u)==='Consulta'; }
+  function isGlobal(u){ return isSEC(u) || isMaster(u); }
+  function numNte(v){ const m = txt(v).match(/NTE\s*[- ]?\s*(\d{1,2})/i); return m ? Number(m[1]) : null; }
+  function normNte(v){ const n=numNte(v); return n ? 'NTE'+String(n).padStart(2,'0') : up(v).replace(/[^A-Z0-9]/g,''); }
+  function nteUsuario(u){ return isSEC(u) ? GRUPO_SEC_V45 : txt(u && (u.nte || u.nte_nome || u.nte_vinculado || u.grupo) || 'NTE-26 Salvador'); }
+  function mesmoNte(a,b){ if(isGlobal(user())) return true; if(!a || !b) return false; const na=numNte(a), nb=numNte(b); return na&&nb ? na===nb : normNte(a)===normNte(b); }
+  function podeGerirUsuarios(u){ return isSEC(u) || isMaster(u); }
+  function podeExcluirUsuario(u){ return isSEC(u) || isMaster(u); }
+  function podeGerirProcessosMaster(u){ return isSEC(u) || isMaster(u); }
+  function podeMovimentarProcesso(u,p){ return isSEC(u) || isMaster(u) || isAdmin(u) || (isTecnico(u) && mesmoNte(nteUsuario(u), p && p.nte)); }
+  function podeEditarEscolaCompleta(u){ return isSEC(u) || isMaster(u) || isAdmin(u); }
+  function podeEditarEscolaLimitada(u){ return isTecnico(u); }
+  function listaUsuarios(){
+    const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB !== 'undefined' && Array.isArray(usuariosDB) ? usuariosDB : []);
+    window.usuariosDB = base; try{ usuariosDB = base; }catch(e){}
+    return base;
+  }
+  function listaProcessos(){
+    const base = Array.isArray(window.processosDB) ? window.processosDB : (typeof processosDB !== 'undefined' && Array.isArray(processosDB) ? processosDB : []);
+    window.processosDB = base; try{ processosDB = base; }catch(e){}
+    return base;
+  }
+  function listaEscolas(){
+    const base = Array.isArray(window.escolasDB) ? window.escolasDB : (typeof escolasDB !== 'undefined' && Array.isArray(escolasDB) ? escolasDB : []);
+    window.escolasDB = base; try{ escolasDB = base; }catch(e){}
+    return base;
+  }
+  function registrar(acao){ try{ if(typeof registrarLog==='function') registrarLog(acao); }catch(e){} }
+  function supa(){ try{ return (typeof obterSupabaseSIGEE==='function') ? obterSupabaseSIGEE() : null; }catch(e){ return null; } }
+  async function salvarUsuarioV45(u){
+    try{ localStorage.setItem('SIGEE_USUARIOS_COMPLETO_V41', JSON.stringify(listaUsuarios())); }catch(e){}
+    try{
+      const c=supa(); if(!c || !u) return;
+      await c.from((window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.usuarios)||'usuarios_sigee')
+        .upsert({ nome:u.nome, email:u.email, perfil:u.perfil, ativo:u.ativo!==false }, { onConflict:'email' });
+    }catch(e){ console.warn('SIGEE V45: usuário preservado localmente; Supabase sem todas as colunas.', e); }
+  }
+  async function excluirUsuarioSupabaseV45(u){
+    try{
+      const c=supa(); if(!c || !u) return;
+      const tabela=(window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.usuarios)||'usuarios_sigee';
+      if(u.id) await c.from(tabela).delete().eq('id', u.id);
+      else if(u.email) await c.from(tabela).delete().eq('email', u.email);
+    }catch(e){ console.warn('SIGEE V45: exclusão de usuário não confirmada no Supabase.', e); }
+  }
+  function processoPayloadV45(p){
+    try{ if(typeof processoParaSupabaseSIGEE==='function') return processoParaSupabaseSIGEE(p); }catch(e){}
+    return { id:p.id, aluno_nome:p.aluno||p.aluno_nome, escola_nome:p.escola||p.escola_nome, documento_tipo:p.documento||p.documento_tipo, etapa_atual:p.etapa||p.etapa_atual, nte:p.nte, modalidade:p.modalidade||null, nivel_oferta:p.ensino||p.nivel_oferta||null };
+  }
+  async function salvarProcessoV45(p){
+    try{ if(typeof salvarBancoLocalSIGEE==='function') salvarBancoLocalSIGEE(); }catch(e){}
+    try{
+      const c=supa(); if(!c || !p) return;
+      await c.from((window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.processos)||'processos')
+        .upsert(processoPayloadV45(p), { onConflict:'id' });
+    }catch(e){ console.warn('SIGEE V45: processo alterado localmente; Supabase não confirmou.', e); }
+  }
+  async function excluirProcessoSupabaseV45(id){
+    try{
+      const c=supa(); if(!c) return;
+      await c.from((window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.processos)||'processos').delete().eq('id', id);
+      try{ await c.from((window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.solicitacoes)||'solicitacoes_sigee').delete().eq('id', id); }catch(e){}
+    }catch(e){ console.warn('SIGEE V45: exclusão de processo não confirmada no Supabase.', e); }
+  }
+  function escolaPayloadV45(e){
+    try{ if(typeof escolaParaSupabaseSIGEE==='function') return escolaParaSupabaseSIGEE(e); }catch(err){}
+    const n = numNte(e.nte || e.nte_id) || e.nte_id || 26;
+    return { cod_mec:e.cod_mec, nome_escola:e.nome_escola||e.nome, municipio:e.municipio||'', nte_id:n, dependencia_adm:e.dependencia_adm||e.dependencia||'Estadual', situacao_funcional:e.situacao_funcional||e.situacao||'Extinta', acervo:e.acervo||'Recolhido', status_acervo:e.status_acervo||e.acervo||'Recolhido', local_acervo:e.local_acervo||null, nome:e.nome||e.nome_escola, nte:e.nte, dependencia:e.dependencia||e.dependencia_adm, situacao:e.situacao||e.situacao_funcional, ativo:e.ativo!==false };
+  }
+  async function salvarEscolaV45(e){
+    try{ if(typeof salvarBancoLocalSIGEE==='function') salvarBancoLocalSIGEE(); }catch(err){}
+    try{
+      const c=supa(); if(!c || !e) return;
+      await c.from((window.SIGEE_SUPABASE_TABELAS&&window.SIGEE_SUPABASE_TABELAS.escolas)||'escolas_sigee')
+        .upsert(escolaPayloadV45(e), { onConflict:'cod_mec' });
+    }catch(err){ console.warn('SIGEE V45: escola alterada localmente; Supabase não confirmou.', err); }
+  }
+  function refresh(){
+    try{ if(typeof carregarListaUsuarios==='function' && !document.getElementById('aba-usuarios')?.classList.contains('hidden')) carregarListaUsuarios(); }catch(e){}
+    try{ if(typeof renderizarListaEscolasBufferMemoria==='function') renderizarListaEscolasBufferMemoria(); }catch(e){}
+    try{ if(typeof carregarEContarProcessosHorizontais==='function') carregarEContarProcessosHorizontais(); }catch(e){}
+    try{ if(typeof carregarDadosDashboardReal==='function') carregarDadosDashboardReal(); }catch(e){}
+    try{ window.SIGEE_PERMISSOES_V44 && window.SIGEE_PERMISSOES_V44.aplicarPermissoesV44(); }catch(e){}
+  }
+
+  window.excluirUsuarioSistemaMasterV45 = async function(id){
+    const uLog=user(); if(!podeExcluirUsuario(uLog)){ alert('Apenas SEC e Master podem excluir usuários.'); return; }
+    const base=listaUsuarios(); const idx=base.findIndex(u=>String(u.id)===String(id));
+    if(idx<0){ alert('Usuário não localizado.'); return; }
+    const alvo=base[idx];
+    if(low(alvo.email)===low(uLog.email)){ alert('Não é permitido excluir o próprio usuário logado.'); return; }
+    if(!confirm(`Confirma excluir o usuário ${alvo.nome || alvo.email}?`)) return;
+    base.splice(idx,1);
+    try{ localStorage.setItem('SIGEE_USUARIOS_COMPLETO_V41', JSON.stringify(base)); }catch(e){}
+    await excluirUsuarioSupabaseV45(alvo);
+    registrar(`[MASTER] Excluiu usuário: ${alvo.nome || alvo.email}`);
+    refresh();
+  };
+
+  const oldToggle = window.toggleStatusUsuarioMaster || (typeof toggleStatusUsuarioMaster !== 'undefined' ? toggleStatusUsuarioMaster : null);
+  window.toggleStatusUsuarioMaster = async function(id){
+    if(!podeGerirUsuarios(user())){ alert('Apenas SEC e Master podem ativar/desativar usuários.'); return; }
+    const u=listaUsuarios().find(x=>String(x.id)===String(id)); if(!u) return;
+    u.ativo = !(u.ativo!==false);
+    await salvarUsuarioV45(u);
+    registrar(`[MASTER] ${u.ativo?'Ativou':'Desativou'} usuário: ${u.nome || u.email}`);
+    refresh();
+  };
+  try{ toggleStatusUsuarioMaster=window.toggleStatusUsuarioMaster; }catch(e){}
+
+  const oldReset = window.resetarSenhaUsuarioMaster || (typeof resetarSenhaUsuarioMaster !== 'undefined' ? resetarSenhaUsuarioMaster : null);
+  window.resetarSenhaUsuarioMaster = async function(id){
+    if(!podeGerirUsuarios(user())){ alert('Apenas SEC e Master podem resetar senha.'); return; }
+    const u=listaUsuarios().find(x=>String(x.id)===String(id)); if(!u) return;
+    const nova=prompt('Informe a nova senha provisória:', '123'); if(nova===null) return;
+    u.senha = txt(nova) || '123';
+    await salvarUsuarioV45(u);
+    registrar(`[MASTER] Resetou senha do usuário: ${u.nome || u.email}`);
+    alert('Senha atualizada.');
+    refresh();
+  };
+  try{ resetarSenhaUsuarioMaster=window.resetarSenhaUsuarioMaster; }catch(e){}
+
+  const oldCarregarUsuarios = window.carregarListaUsuarios || (typeof carregarListaUsuarios !== 'undefined' ? carregarListaUsuarios : null);
+  window.carregarListaUsuarios = function(){
+    const corpo=document.getElementById('tabela-usuarios-corpo'); if(!corpo){ if(oldCarregarUsuarios) return oldCarregarUsuarios.apply(this,arguments); return; }
+    corpo.innerHTML='';
+    const uLog=user();
+    let lista=listaUsuarios().slice();
+    if(!isGlobal(uLog)) lista=lista.filter(u=>mesmoNte(nteUsuario(u), nteUsuario(uLog)));
+    lista.forEach(u=>{
+      const p=perfil(u); const nte=nteUsuario(u);
+      const pode=podeGerirUsuarios(uLog);
+      const botoes=pode?`<div class="flex items-center justify-center gap-1.5"><button onclick="abrirModalEditarUsuarioMaster(${u.id})" class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">Editar</button><button onclick="toggleStatusUsuarioMaster(${u.id})" class="${u.ativo!==false?'bg-red-600':'bg-emerald-600'} text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">${u.ativo!==false?'Desativar':'Ativar'}</button><button onclick="resetarSenhaUsuarioMaster(${u.id})" class="bg-gray-700 text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">Resetar Senha</button><button onclick="excluirUsuarioSistemaMasterV45(${u.id})" class="bg-black text-white text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer">Excluir</button></div>`:'<span class="text-xs text-gray-400 italic">Sem permissão</span>';
+      corpo.insertAdjacentHTML('beforeend',`<tr class="text-xs"><td class="p-3 font-bold">${u.nome||''}${p==='SEC'?'<span class="ml-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-black text-[9px]">SEC</span>':''}<br><span class="text-xs text-gray-400 font-normal font-mono">${u.email||''}</span></td><td class="p-3 font-medium">${p}</td><td class="p-3 font-semibold text-gray-400">${nte}</td><td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo!==false?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${u.ativo!==false?'ATIVO':'INATIVO'}</span></td><td class="p-3 text-center">${botoes}</td></tr>`);
+    });
+  };
+  try{ carregarListaUsuarios=window.carregarListaUsuarios; }catch(e){}
+
+  window.editarProcessoMasterV45 = async function(id){
+    const u=user(); if(!podeGerirProcessosMaster(u)){ alert('Apenas SEC e Master podem editar processos diretamente.'); return; }
+    const p=listaProcessos().find(x=>String(x.id)===String(id)); if(!p) return;
+    const aluno=prompt('Aluno:', p.aluno || p.aluno_nome || ''); if(aluno===null) return;
+    const escola=prompt('Instituição:', p.escola || p.escola_nome || ''); if(escola===null) return;
+    const doc=prompt('Documento:', p.documento || p.documento_tipo || 'HISTÓRICO'); if(doc===null) return;
+    const nte=prompt('NTE:', p.nte || ''); if(nte===null) return;
+    p.aluno=p.aluno_nome=txt(aluno).toUpperCase(); p.escola=p.escola_nome=txt(escola).toUpperCase(); p.documento=p.documento_tipo=txt(doc).toUpperCase(); p.nte=txt(nte) || p.nte;
+    registrar(`[MASTER] Editou processo ID ${p.id}.`); await salvarProcessoV45(p); refresh();
+  };
+  window.avancarProcessoMasterV45 = async function(id){
+    const u=user(); if(!podeGerirProcessosMaster(u)){ alert('Apenas SEC e Master podem avançar processos diretamente.'); return; }
+    const p=listaProcessos().find(x=>String(x.id)===String(id)); if(!p) return;
+    const atual=ETAPAS_V45.findIndex(e=>up(e)===up(p.etapa||p.etapa_atual)); const prox=ETAPAS_V45[Math.min(ETAPAS_V45.length-1, Math.max(0,atual)+1)];
+    p.etapa=p.etapa_atual=prox; p.data_etapa_atual=hojeBR();
+    registrar(`[MASTER] Avançou processo ID ${p.id} para ${prox}.`); await salvarProcessoV45(p); refresh();
+  };
+  window.regredirProcessoMasterV45 = async function(id){
+    const u=user(); if(!podeGerirProcessosMaster(u)){ alert('Apenas SEC e Master podem regredir processos diretamente.'); return; }
+    const p=listaProcessos().find(x=>String(x.id)===String(id)); if(!p) return;
+    const atual=ETAPAS_V45.findIndex(e=>up(e)===up(p.etapa||p.etapa_atual)); const ant=ETAPAS_V45[Math.max(0, (atual<0?0:atual)-1)];
+    p.etapa=p.etapa_atual=ant; p.data_etapa_atual=hojeBR();
+    registrar(`[MASTER] Regrediu processo ID ${p.id} para ${ant}.`); await salvarProcessoV45(p); refresh();
+  };
+  window.excluirProcessoMasterV45 = async function(id){
+    const u=user(); if(!podeGerirProcessosMaster(u)){ alert('Apenas SEC e Master podem excluir processos.'); return; }
+    const base=listaProcessos(); const idx=base.findIndex(x=>String(x.id)===String(id)); if(idx<0) return;
+    const p=base[idx]; if(!confirm(`Confirma excluir o processo de ${p.aluno || p.aluno_nome || 'aluno'}?`)) return;
+    base.splice(idx,1); await excluirProcessoSupabaseV45(id); registrar(`[MASTER] Excluiu processo ID ${id}.`); refresh();
+  };
+
+  function diasDesde(valor){
+    if(!valor) return 0; let d=null, s=txt(valor);
+    if(/^\d{2}\/\d{2}\/\d{4}/.test(s)){ const a=s.slice(0,10).split('/').map(Number); d=new Date(a[2],a[1]-1,a[0]); } else d=new Date(s);
+    if(!d || Number.isNaN(d.getTime())) return 0; const h=new Date(); h.setHours(0,0,0,0); d.setHours(0,0,0,0); return Math.max(0,Math.floor((h-d)/86400000));
+  }
+  function clsEtapa(etapa){ const e=up(etapa); if(e.includes('ANAL')) return 'bg-purple-600'; if(e.includes('PEND')) return 'bg-red-600'; if(e.includes('DIGIT')) return 'bg-orange-500'; if(e.includes('CONFER')) return 'bg-green-600'; if(e.includes('ASSIN')) return 'bg-blue-700'; if(e.includes('AGUARD')) return 'bg-teal-600'; if(e.includes('RETIR')) return 'bg-gray-700'; return 'bg-sky-600'; }
+  function acaoFluxo(p){
+    if(!podeMovimentarProcesso(user(),p)) return '<span class="text-gray-400 font-bold">Sem ação</span>';
+    const e=up(p.etapa||p.etapa_atual);
+    if(e.includes('ANAL')) return `<button onclick="abrirModalFluxoAnalise(${p.id})" class="bg-purple-700 text-white font-bold px-2 py-1 rounded text-[10px]">Análise Realizada</button>`;
+    if(e.includes('PEND')) return `<button onclick="abrirModalFluxoPendencia(${p.id})" class="bg-red-700 text-white font-bold px-2 py-1 rounded text-[10px]">Tratar Pendência</button>`;
+    if(e.includes('DIGIT')) return `<button onclick="abrirModalFluxoDigitacao(${p.id})" class="bg-orange-600 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Digitado</button>`;
+    if(e.includes('CONFER')) return `<button onclick="abrirModalFluxoConferencia(${p.id})" class="bg-green-700 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Conferido</button>`;
+    if(e.includes('ASSIN')) return `<button onclick="abrirModalFluxoAssinatura(${p.id})" class="bg-blue-700 text-white font-bold px-2 py-1 rounded text-[10px]">Deferido</button>`;
+    if(e.includes('AGUARD')) return `<button onclick="abrirModalFluxoAguardando(${p.id})" class="bg-gray-700 text-white font-bold px-2 py-1 rounded text-[10px]">Retirado</button>`;
+    if(e.includes('RETIR')) return '<span class="text-gray-300 font-bold">Finalizado</span>';
+    return `<button onclick="abrirModalFluxoDesarquivamento(${p.id})" class="bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Recebido</button>`;
+  }
+  window.renderizarProcessosFlutuantes = function(){
+    const corpo=document.getElementById('tabela-processos-corpo'); if(!corpo) return; corpo.innerHTML='';
+    let lista=listaProcessos().slice(); const u=user();
+    if(!isGlobal(u)) lista=lista.filter(p=>mesmoNte(nteUsuario(u), p.nte));
+    const etapa=(typeof etapaFiltroAtual!=='undefined'?etapaFiltroAtual:'TODOS'); if(etapa && etapa!=='TODOS') lista=lista.filter(p=>up(p.etapa||p.etapa_atual)===up(etapa));
+    const busca=up(document.getElementById('busca-proc-nome')?.value||''); if(busca) lista=lista.filter(p=>up((p.aluno||p.aluno_nome||'')+' '+(p.escola||p.escola_nome||'')).includes(busca));
+    lista.forEach(p=>{
+      const etapaTxt=txt(p.etapa||p.etapa_atual||'Desarquivamento');
+      const master=podeGerirProcessosMaster(u)?`<div class="mt-1 flex flex-wrap justify-center gap-1"><button onclick="editarProcessoMasterV45(${p.id})" class="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded font-bold">Editar</button><button onclick="regredirProcessoMasterV45(${p.id})" class="bg-amber-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">Regredir</button><button onclick="avancarProcessoMasterV45(${p.id})" class="bg-emerald-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">Avançar</button><button onclick="excluirProcessoMasterV45(${p.id})" class="bg-red-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">Excluir</button></div>`:'';
+      corpo.insertAdjacentHTML('beforeend',`<tr class="hover:bg-white/10 text-white"><td class="p-2.5 font-bold truncate"><span class="block uppercase truncate">${txt(p.aluno||p.aluno_nome)}</span><span class="text-[10px] text-cyan-200 font-extrabold">${txt(p.documento||p.documento_tipo)}</span></td><td class="p-2.5 truncate"><span class="block font-bold text-white truncate text-[10px]">${txt(p.escola||p.escola_nome)}</span><span class="text-[9px] text-cyan-200 block font-semibold uppercase truncate">${txt(p.nte)}</span></td><td class="p-2.5 text-center"><span class="px-2 py-1 ${clsEtapa(etapaTxt)} text-white font-black rounded text-[9px] uppercase block">${etapaTxt}</span></td><td class="p-2.5 text-center font-bold">${diasDesde(p.data_etapa_atual||p.created_at)} dias</td><td class="p-2.5 text-center">${acaoFluxo(p)}${master}</td></tr>`);
+    });
+  };
+  try{ renderizarProcessosFlutuantes=window.renderizarProcessosFlutuantes; }catch(e){}
+
+  window.editarEscolaSIGEEV45 = async function(id){
+    const u=user(); const e=listaEscolas().find(x=>String(x.id)===String(id) || String(x.cod_mec)===String(id)); if(!e) return;
+    if(!podeEditarEscolaCompleta(u) && !podeEditarEscolaLimitada(u)){ alert('Sem permissão para alterar escola.'); return; }
+    if(podeEditarEscolaLimitada(u) && !isGlobal(u) && !isAdmin(u) && !mesmoNte(nteUsuario(u), e.nte)){ alert('Técnico só altera escolas do próprio NTE.'); return; }
+    if(podeEditarEscolaCompleta(u)){
+      const nome=prompt('Nome da escola:', e.nome||e.nome_escola||''); if(nome===null) return;
+      const municipio=prompt('Município:', e.municipio||''); if(municipio===null) return;
+      const nte=prompt('NTE:', e.nte||''); if(nte===null) return;
+      const dependencia=prompt('Dependência administrativa:', e.dependencia||e.dependencia_adm||''); if(dependencia===null) return;
+      e.nome=e.nome_escola=txt(nome).toUpperCase(); e.municipio=txt(municipio).toUpperCase(); e.nte=txt(nte); e.dependencia=e.dependencia_adm=txt(dependencia);
+    }
+    const sit=prompt('Situação da escola:', e.situacao||e.situacao_funcional||'Extinta'); if(sit===null) return;
+    const acv=prompt('Status do Acervo:', e.status_acervo||e.acervo||'Recolhido'); if(acv===null) return;
+    const loc=prompt('Local do acervo:', e.local_acervo||''); if(loc===null) return;
+    e.situacao=e.situacao_funcional=txt(sit); e.acervo=e.status_acervo=txt(acv); e.local_acervo=txt(loc);
+    await salvarEscolaV45(e);
+    registrar(`${perfil(u)} alterou escola ${e.cod_mec || e.nome}: situação=${e.situacao}; acervo=${e.status_acervo}; local=${e.local_acervo}`);
+    refresh();
+  };
+
+  const oldRenderEscolas = window.renderizarListaEscolasBufferMemoria || (typeof renderizarListaEscolasBufferMemoria !== 'undefined' ? renderizarListaEscolasBufferMemoria : null);
+  window.renderizarListaEscolasBufferMemoria = function(){
+    const corpo=document.getElementById('tabela-escolas-corpo');
+    if(!corpo){ if(oldRenderEscolas) return oldRenderEscolas.apply(this,arguments); return; }
+    corpo.innerHTML='';
+    let lista=listaEscolas().slice(); const u=user(); if(!isGlobal(u)) lista=lista.filter(e=>mesmoNte(nteUsuario(u), e.nte));
+    const busca=up(document.getElementById('busca-escola')?.value||''); if(busca) lista=lista.filter(e=>up((e.cod_mec||'')+' '+(e.nome||e.nome_escola||'')+' '+(e.municipio||'')).includes(busca));
+    const porPagina=(typeof totalPorPaginaEscola!=='undefined'?totalPorPaginaEscola:8); let pagAtual=(typeof paginaEscolaAtual!=='undefined'?paginaEscolaAtual:1); const totalPag=Math.max(1,Math.ceil(lista.length/porPagina)); if(pagAtual>totalPag) pagAtual=1; try{ paginaEscolaAtual=pagAtual; }catch(e){}
+    lista.slice((pagAtual-1)*porPagina,(pagAtual-1)*porPagina+porPagina).forEach(e=>{
+      const situ=up(e.situacao||e.situacao_funcional).includes('ATIVA')?'<span class="font-black text-green-400">ATIVA</span>':'<span class="font-black text-red-400">EXTINTA</span>';
+      const acv=up(e.status_acervo||e.acervo).includes('RECOLHIDO')?'<span class="font-black text-green-400">RECOLHIDO</span>':'<span class="font-black text-red-400">NÃO RECOLHIDO</span>';
+      const pode = podeEditarEscolaCompleta(u) || podeEditarEscolaLimitada(u);
+      corpo.insertAdjacentHTML('beforeend',`<tr class="hover:bg-white/10 text-[11px] text-white"><td class="p-3 font-mono font-bold">${txt(e.cod_mec)}</td><td class="p-3 font-bold uppercase">${txt(e.nome||e.nome_escola)}</td><td class="p-3 uppercase font-medium">${txt(e.municipio)}</td><td class="p-3 font-semibold">${txt(e.nte)}<br><span class="text-[9px] bg-white/10 px-1 rounded">${txt(e.dependencia||e.dependencia_adm)}</span></td><td class="p-3">${situ}</td><td class="p-3">${acv}</td><td class="p-3 text-center">${pode?`<button onclick="editarEscolaSIGEEV45('${e.id||e.cod_mec}')" class="bg-cyan-600/80 text-white font-bold px-2 py-1 rounded text-[10px]">Alterar</button>`:'<span class="text-gray-400">Sem ação</span>'}</td></tr>`);
+    });
+    const info=document.getElementById('info-quantidade-escolas-carregadas'); if(info) info.innerText=`Exibindo: ${lista.length} registros | Banco: Supabase carregado`;
+    const ptxt=document.getElementById('txt-escola-paginacao'); if(ptxt) ptxt.innerText=`Página ${pagAtual} de ${totalPag}`;
+  };
+  try{ renderizarListaEscolasBufferMemoria=window.renderizarListaEscolasBufferMemoria; }catch(e){}
+
+  function aplicarV45(){
+    try{ window.SIGEE_PERMISSOES_V44 && window.SIGEE_PERMISSOES_V44.aplicarPermissoesV44(); }catch(e){}
+    const u=user(); if(!u) return;
+    document.querySelectorAll('#menu-usuarios').forEach(el=>el.classList.toggle('hidden', !podeGerirUsuarios(u)));
+    if(document.getElementById('aba-processos') && !document.getElementById('aba-processos').classList.contains('hidden')) window.renderizarProcessosFlutuantes();
+    if(document.getElementById('aba-escolas') && !document.getElementById('aba-escolas').classList.contains('hidden')) window.renderizarListaEscolasBufferMemoria();
+  }
+  const navPrev=window.navegar || (typeof navegar !== 'undefined' ? navegar : null);
+  window.navegar=function(){ const r=typeof navPrev==='function'?navPrev.apply(this,arguments):undefined; setTimeout(aplicarV45,30); return r; };
+  try{ navegar=window.navegar; }catch(e){}
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(aplicarV45,500));
+  setInterval(aplicarV45,3000);
+  window.SIGEE_V45 = { aplicarV45, editarEscolaSIGEEV45, excluirUsuarioSistemaMasterV45, editarProcessoMasterV45, avancarProcessoMasterV45, regredirProcessoMasterV45, excluirProcessoMasterV45 };
+})();
+</script>
+
 </body>
 </html>
