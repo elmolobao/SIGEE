@@ -6574,5 +6574,299 @@
 })();
 </script>
 
+
+
+<!-- =====================================================================
+     SIGEE V40 - Perfis técnicos corrigidos + usuários conectados em Logs
+     Mantém integralmente o carregamento V38/V39 de escolas, processos e dashboard.
+     Ajusta apenas permissões finais e dashboard de usuários conectados.
+     ===================================================================== -->
+<script>
+(function(){
+  'use strict';
+  const EMAIL_SEC_V40 = 'sec@enova.educacao.ba.gov.br';
+  const GRUPO_SEC_V40 = 'SEC - TODOS OS NTEs';
+
+  function txt(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function sem(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function up(v){ return sem(v).toUpperCase(); }
+  function low(v){ return txt(v).toLowerCase(); }
+
+  function perfilV40(v){
+    const p = up(v || 'Tecnico');
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    if(p.includes('TECNIC') || p.includes('TÉCNIC')) return 'Tecnico';
+    return 'Tecnico';
+  }
+  function isSECV40(u){ return !!u && (low(u.email)===EMAIL_SEC_V40 || perfilV40(u.perfil)==='SEC' || up(u.grupo).includes('SEC') || up(u.nte).includes('SEC') || up(u.nte).includes('TODOS OS NTES')); }
+  function isMasterV40(u){ return perfilV40(u && u.perfil)==='Master'; }
+  function isAdminV40(u){ return perfilV40(u && u.perfil)==='Administrador'; }
+  function isTecnicoV40(u){ return perfilV40(u && u.perfil)==='Tecnico'; }
+  function isConsultaV40(u){ return perfilV40(u && u.perfil)==='Consulta'; }
+  function isGlobalV40(u){ return isMasterV40(u) || isSECV40(u); }
+  function podeImportarV40(u){ return isGlobalV40(u) || isAdminV40(u); }
+  function podeEditarEscolaV40(u){ return isGlobalV40(u) || isAdminV40(u) || isTecnicoV40(u); }
+  function podeMovimentarV40(u){ return isGlobalV40(u) || isAdminV40(u) || isTecnicoV40(u); }
+  function podeVerUsuariosV40(u){ return isGlobalV40(u); }
+  function podeVerLogsV40(u){ return isGlobalV40(u) || isAdminV40(u); }
+  function usuarioAtual(){ return window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null); }
+
+  function normalizarUsuarioV40(u){
+    if(!u) return u;
+    if(low(u.email) === EMAIL_SEC_V40){
+      u.nome = u.nome || 'USUÁRIO SEC';
+      u.perfil = 'SEC';
+      u.grupo = 'SEC';
+      u.nte = GRUPO_SEC_V40;
+      u.senha = u.senha || '123';
+      u.ativo = u.ativo !== false;
+      return u;
+    }
+    u.perfil = perfilV40(u.perfil || u.tipo || u.role || 'Tecnico');
+    u.nte = txt(u.nte || u.nte_vinculado || u.grupo || 'NTE-26 Salvador');
+    u.senha = u.senha || '123';
+    u.ativo = u.ativo !== false;
+    return u;
+  }
+
+  function garantirUsuariosBaseV40(){
+    try{
+      window.usuariosDB = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB !== 'undefined' && Array.isArray(usuariosDB) ? usuariosDB : []);
+      try{ usuariosDB = window.usuariosDB; }catch(e){}
+      const existe = e => window.usuariosDB.some(u => low(u.email) === low(e));
+      const prox = base => Math.max(base, 0, ...window.usuariosDB.map(u => Number(u.id)||0)) + 1;
+      if(!existe(EMAIL_SEC_V40)) window.usuariosDB.push({id: prox(900000), nome:'USUÁRIO SEC', email:EMAIL_SEC_V40, senha:'123', perfil:'SEC', grupo:'SEC', nte:GRUPO_SEC_V40, ativo:true});
+      window.usuariosDB.forEach(normalizarUsuarioV40);
+      if(Array.isArray(window.LISTA_OFICIAL_27_NTES) && !window.LISTA_OFICIAL_27_NTES.some(n => up(n).includes('SEC - TODOS'))) window.LISTA_OFICIAL_27_NTES.unshift(GRUPO_SEC_V40);
+    }catch(e){ console.warn('SIGEE V40: não foi possível garantir usuários base.', e); }
+  }
+
+  function sincronizarIdentidadeUsuarioV40(){
+    garantirUsuariosBaseV40();
+    const u = usuarioAtual();
+    if(!u) return null;
+    // Mantém o perfil salvo/cadastrado para o usuário. Não promove Técnico para Master por e-mail.
+    const cadastrado = (window.usuariosDB || []).find(x => low(x.email) === low(u.email));
+    if(cadastrado){
+      u.perfil = perfilV40(cadastrado.perfil || u.perfil);
+      u.nte = cadastrado.nte || u.nte;
+      u.grupo = cadastrado.grupo || u.grupo || '';
+      u.nome = cadastrado.nome || u.nome;
+      u.ativo = cadastrado.ativo !== false;
+    } else {
+      normalizarUsuarioV40(u);
+    }
+    window.usuarioLogado = u;
+    try{ usuarioLogado = u; }catch(e){}
+    return u;
+  }
+
+  function aplicarPermissoesV40(){
+    const u = sincronizarIdentidadeUsuarioV40();
+
+    const btnImportar = document.getElementById('btn-importar-dados-master');
+    if(btnImportar) btnImportar.classList.toggle('hidden', !podeImportarV40(u));
+    const inputImportar = document.getElementById('input-importar-excel');
+    if(inputImportar) inputImportar.disabled = !podeImportarV40(u);
+    document.querySelectorAll('[data-master-only-import-processos], .btn-importar-processos-master, .btn-importar-processos-admin, .import-only')
+      .forEach(el => el.classList.toggle('hidden', !podeImportarV40(u)));
+
+    const menuUsuarios = document.getElementById('menu-usuarios');
+    if(menuUsuarios) menuUsuarios.classList.toggle('hidden', !podeVerUsuariosV40(u));
+    const menuLogs = document.getElementById('menu-logs');
+    if(menuLogs) menuLogs.classList.toggle('hidden', !podeVerLogsV40(u));
+
+    document.querySelectorAll('[data-sigee-permissao="editar-escola"], .btn-editar-escola')
+      .forEach(el => el.classList.toggle('hidden', !podeEditarEscolaV40(u)));
+
+    const nome = document.getElementById('user-nome');
+    const pf = document.getElementById('user-perfil');
+    if(u && nome) nome.innerText = u.nome || '';
+    if(u && pf) pf.innerText = `${perfilV40(u.perfil)} | ${u.nte || ''}`;
+
+    // Se um Técnico/Consulta estiver numa aba administrativa por cache/navegação direta, volta ao Dashboard.
+    const abaUsuarios = document.getElementById('aba-usuarios');
+    if(abaUsuarios && !abaUsuarios.classList.contains('hidden') && !podeVerUsuariosV40(u)){
+      if(typeof navegar === 'function') navegar('painel');
+    }
+    const abaLogs = document.getElementById('aba-logs');
+    if(abaLogs && !abaLogs.classList.contains('hidden') && !podeVerLogsV40(u)){
+      if(typeof navegar === 'function') navegar('painel');
+    }
+  }
+
+  window.SIGEE_PERFIS_V40 = {
+    perfil: u => perfilV40(u && u.perfil ? u.perfil : u),
+    isSEC: isSECV40,
+    isMaster: isMasterV40,
+    isAdmin: isAdminV40,
+    isTecnico: isTecnicoV40,
+    isConsulta: isConsultaV40,
+    isGlobal: isGlobalV40,
+    podeImportar: podeImportarV40,
+    podeEditarEscola: podeEditarEscolaV40,
+    podeMovimentar: podeMovimentarV40,
+    podeVerUsuarios: podeVerUsuariosV40,
+    podeVerLogs: podeVerLogsV40,
+    aplicarPermissoes: aplicarPermissoesV40
+  };
+  window.perfilCanonicoSIGEE = function(perfil){ return perfilV40(perfil); };
+  try{ perfilCanonicoSIGEE = window.perfilCanonicoSIGEE; }catch(e){}
+
+  // Protege navegação administrativa para Técnico e Consulta.
+  const navegarAnteriorV40 = window.navegar || (typeof navegar !== 'undefined' ? navegar : null);
+  if(typeof navegarAnteriorV40 === 'function'){
+    window.navegar = function(aba){
+      const u = sincronizarIdentidadeUsuarioV40();
+      if(aba === 'usuarios' && !podeVerUsuariosV40(u)){ alert('Acesso ao Controle de Usuários permitido apenas para SEC e Master.'); aba = 'painel'; }
+      if(aba === 'logs' && !podeVerLogsV40(u)){ alert('Acesso aos Logs permitido apenas para SEC, Master e Administrador.'); aba = 'painel'; }
+      const r = navegarAnteriorV40.call(this, aba);
+      setTimeout(aplicarPermissoesV40, 80);
+      return r;
+    };
+    try{ navegar = window.navegar; }catch(e){}
+  }
+
+  // Reforça login sem alterar a rotina de carregamento do banco.
+  const loginAnteriorV40 = window.handleLogin || (typeof handleLogin !== 'undefined' ? handleLogin : null);
+  if(typeof loginAnteriorV40 === 'function'){
+    window.handleLogin = async function(event){
+      const r = await loginAnteriorV40.apply(this, arguments);
+      sincronizarIdentidadeUsuarioV40();
+      registrarUsuarioConectadoV40('Login realizado no sistema.');
+      aplicarPermissoesV40();
+      return r;
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+
+  // Impede importação para Técnico/Consulta mesmo se o botão for acionado por console ou cache.
+  const importAnteriorV40 = window.processarImportacaoOtimizada || (typeof processarImportacaoOtimizada !== 'undefined' ? processarImportacaoOtimizada : null);
+  if(typeof importAnteriorV40 === 'function'){
+    window.processarImportacaoOtimizada = function(event){
+      const u = sincronizarIdentidadeUsuarioV40();
+      if(!podeImportarV40(u)){
+        if(event && event.target) event.target.value = '';
+        alert('Importação permitida apenas para os perfis SEC, Master e Administrador.');
+        return false;
+      }
+      return importAnteriorV40.apply(this, arguments);
+    };
+    try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+  }
+
+  function lerOnlineV40(){
+    const mapa = Object.assign({}, window.SIGEE_USUARIOS_ONLINE || {});
+    try{ Object.assign(mapa, JSON.parse(localStorage.getItem('SIGEE_USUARIOS_ONLINE') || '{}')); }catch(e){}
+    const agora = Date.now();
+    return Object.values(mapa).filter(u => {
+      const ts = Number(u.ts || 0);
+      return !ts || (agora - ts) < (1000 * 60 * 60 * 8); // mantém online nas últimas 8h
+    });
+  }
+
+  function salvarOnlineV40(mapa){
+    window.SIGEE_USUARIOS_ONLINE = mapa;
+    try{ localStorage.setItem('SIGEE_USUARIOS_ONLINE', JSON.stringify(mapa)); }catch(e){}
+  }
+
+  function registrarUsuarioConectadoV40(acao){
+    const u = usuarioAtual();
+    if(!u || !u.email) return;
+    const agora = new Date();
+    let mapa = {};
+    try{ mapa = JSON.parse(localStorage.getItem('SIGEE_USUARIOS_ONLINE') || '{}'); }catch(e){ mapa = {}; }
+    mapa[low(u.email)] = {
+      nome: u.nome || '', email: u.email || '', nte: u.nte || '', perfil: perfilV40(u.perfil),
+      ultimo: agora.toLocaleString('pt-BR'), ts: agora.getTime()
+    };
+    salvarOnlineV40(mapa);
+    try{
+      if(typeof registrarLog === 'function' && acao) registrarLog(acao);
+    }catch(e){}
+  }
+
+  function garantirDashboardLogV40(){
+    const secao = document.getElementById('aba-logs');
+    if(!secao || document.getElementById('painel-usuarios-conectados-v40')) return;
+    const bloco = document.createElement('div');
+    bloco.id = 'painel-usuarios-conectados-v40';
+    bloco.className = 'bg-white/10 rounded-xl border border-cyan-700/40 shadow-sm p-4 space-y-3 text-white';
+    bloco.innerHTML = `
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-bold text-cyan-100">👥 Usuários conectados no sistema</h2>
+          <p class="text-xs text-cyan-200/80">Sessões registradas neste navegador/ambiente de uso.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+          <div class="bg-blue-950/70 rounded-lg p-3"><p class="text-[10px] uppercase text-cyan-200">Total</p><p id="log-v40-total" class="text-xl font-black">0</p></div>
+          <div class="bg-blue-950/70 rounded-lg p-3"><p class="text-[10px] uppercase text-cyan-200">SEC/Master</p><p id="log-v40-master" class="text-xl font-black">0</p></div>
+          <div class="bg-blue-950/70 rounded-lg p-3"><p class="text-[10px] uppercase text-cyan-200">Admin</p><p id="log-v40-admin" class="text-xl font-black">0</p></div>
+          <div class="bg-blue-950/70 rounded-lg p-3"><p class="text-[10px] uppercase text-cyan-200">Técnico/Consulta</p><p id="log-v40-operacao" class="text-xl font-black">0</p></div>
+        </div>
+      </div>
+      <div class="overflow-x-auto rounded-lg border border-cyan-700/30">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-cyan-950/70 text-cyan-100 uppercase"><tr><th class="p-2">Usuário</th><th class="p-2">Perfil</th><th class="p-2">NTE</th><th class="p-2">Último acesso</th><th class="p-2">Status</th></tr></thead>
+          <tbody id="tabela-usuarios-conectados-v40" class="divide-y divide-cyan-900/40"></tbody>
+        </table>
+      </div>`;
+    const tabelaLogs = secao.querySelector('.bg-white.rounded-xl, table') || null;
+    if(tabelaLogs && tabelaLogs.parentElement === secao) secao.insertBefore(bloco, tabelaLogs);
+    else secao.prepend(bloco);
+  }
+
+  function atualizarUsuariosConectadosV40(){
+    garantirDashboardLogV40();
+    const online = lerOnlineV40();
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+    set('log-v40-total', online.length);
+    set('log-v40-master', online.filter(u => ['SEC','Master'].includes(perfilV40(u.perfil))).length);
+    set('log-v40-admin', online.filter(u => perfilV40(u.perfil)==='Administrador').length);
+    set('log-v40-operacao', online.filter(u => ['Tecnico','Consulta'].includes(perfilV40(u.perfil))).length);
+    const corpo = document.getElementById('tabela-usuarios-conectados-v40');
+    if(corpo){
+      corpo.innerHTML = online.length ? online.map(u => `<tr class="hover:bg-white/5"><td class="p-2 font-bold">${txt(u.nome)}<br><span class="font-mono text-cyan-200/80">${txt(u.email)}</span></td><td class="p-2">${perfilV40(u.perfil)}</td><td class="p-2">${txt(u.nte)}</td><td class="p-2">${txt(u.ultimo)}</td><td class="p-2"><span class="bg-emerald-500/20 text-emerald-200 px-2 py-0.5 rounded-full font-bold">ONLINE</span></td></tr>`).join('') : '<tr><td colspan="5" class="p-3 text-center text-cyan-100/70">Nenhum usuário registrado como conectado.</td></tr>';
+    }
+  }
+
+  const logsAnteriorV40 = window.carregarLogs || (typeof carregarLogs !== 'undefined' ? carregarLogs : null);
+  window.carregarLogs = function(){
+    if(typeof logsAnteriorV40 === 'function') logsAnteriorV40.apply(this, arguments);
+    atualizarUsuariosConectadosV40();
+  };
+  try{ carregarLogs = window.carregarLogs; }catch(e){}
+
+  const logoutAnteriorV40 = window.logout || (typeof logout !== 'undefined' ? logout : null);
+  window.logout = function(){
+    const u = usuarioAtual();
+    if(u && u.email){
+      try{
+        const mapa = JSON.parse(localStorage.getItem('SIGEE_USUARIOS_ONLINE') || '{}');
+        delete mapa[low(u.email)];
+        salvarOnlineV40(mapa);
+      }catch(e){}
+      try{ if(typeof registrarLog === 'function') registrarLog('Logout realizado no sistema.'); }catch(e){}
+    }
+    if(typeof logoutAnteriorV40 === 'function') return logoutAnteriorV40.apply(this, arguments);
+    window.usuarioLogado = null; try{ usuarioLogado = null; }catch(e){}
+    document.getElementById('sistema-dashboard')?.classList.add('hidden');
+    document.getElementById('tela-login')?.classList.remove('hidden');
+  };
+  try{ logout = window.logout; }catch(e){}
+
+  document.addEventListener('DOMContentLoaded', function(){
+    garantirUsuariosBaseV40();
+    setTimeout(aplicarPermissoesV40, 400);
+    setTimeout(aplicarPermissoesV40, 1500);
+    setTimeout(atualizarUsuariosConectadosV40, 1600);
+  });
+  setInterval(function(){ if(usuarioAtual()) registrarUsuarioConectadoV40(); if(!document.getElementById('aba-logs')?.classList.contains('hidden')) atualizarUsuariosConectadosV40(); }, 60000);
+})();
+</script>
+
 </body>
 </html>
