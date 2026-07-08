@@ -6868,5 +6868,175 @@
 })();
 </script>
 
+
+
+<!-- =====================================================================
+     SIGEE V41 - Persistência de alterações dos usuários
+     Mantém carregamento V38/V40 e preserva alterações de perfil/NTE/senha
+     quando a tabela usuarios_sigee não possui todas as colunas.
+     ===================================================================== -->
+<script>
+(function(){
+  'use strict';
+  const KEY_COMPLETO = 'SIGEE_USUARIOS_COMPLETO_V41';
+  const KEY_ONLINE = 'SIGEE_USUARIOS_ONLINE';
+
+  function txt(v){ return (v===undefined||v===null)?'':String(v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function up(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
+  function perfil(v){
+    const p = up(v);
+    if(p.includes('SEC')) return 'SEC';
+    if(p.includes('MASTER')) return 'Master';
+    if(p.includes('ADMIN')) return 'Administrador';
+    if(p.includes('CONSULT')) return 'Consulta';
+    return 'Tecnico';
+  }
+  function isSEC(u){ return !!u && (perfil(u.perfil)==='SEC' || up(u.grupo).includes('SEC') || up(u.nte).includes('SEC') || up(u.nte).includes('TODOS OS NTES') || low(u.email)==='sec@enova.educacao.ba.gov.br'); }
+  function isGlobal(u){ const p=perfil(u&&u.perfil); return p==='SEC' || p==='Master' || isSEC(u); }
+  function usuarioAtual(){ return window.usuarioLogado || (typeof usuarioLogado!=='undefined'?usuarioLogado:null); }
+  function normalizarUsuarioV41(u){
+    u = u || {};
+    const email = low(u.email);
+    let pf = perfil(u.perfil || u.tipo || u.role || 'Tecnico');
+    if(email==='elmo.lobao@enova.educacao.ba.gov.br') pf = 'Master';
+    if(email==='sec@enova.educacao.ba.gov.br') pf = 'SEC';
+    let nte = txt(u.nte || u.nte_nome || u.nte_vinculado || u.grupo || u.nte_id || 'NTE-26 Salvador');
+    if(pf==='SEC' || up(nte).includes('SEC')) nte = 'SEC - TODOS OS NTEs';
+    return Object.assign({}, u, {
+      id: u.id || Date.now(),
+      nome: txt(u.nome || u.name || 'USUÁRIO').toUpperCase(),
+      email,
+      senha: txt(u.senha || u.password || '123'),
+      perfil: pf,
+      nte,
+      grupo: pf==='SEC' ? 'SEC' : (u.grupo || ''),
+      ativo: u.ativo !== false
+    });
+  }
+  function salvarUsuariosLocalV41(){
+    try{
+      const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB!=='undefined'?usuariosDB:[]);
+      const salvos = base.map(normalizarUsuarioV41);
+      localStorage.setItem(KEY_COMPLETO, JSON.stringify(salvos));
+      return true;
+    }catch(e){ console.warn('SIGEE V41: não salvou usuários no cache local', e); return false; }
+  }
+  function carregarUsuariosLocalV41(){
+    try{
+      const salvos = JSON.parse(localStorage.getItem(KEY_COMPLETO) || '[]').map(normalizarUsuarioV41);
+      if(!salvos.length) return false;
+      const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB!=='undefined'?usuariosDB:[]);
+      salvos.forEach(s=>{
+        const idx = base.findIndex(u => low(u.email)===s.email || String(u.id)===String(s.id));
+        if(idx>=0) base[idx] = Object.assign({}, base[idx], s); else base.push(s);
+      });
+      window.usuariosDB = base;
+      try{ usuariosDB = base; }catch(e){}
+      return true;
+    }catch(e){ console.warn('SIGEE V41: não carregou usuários do cache local', e); return false; }
+  }
+  async function salvarUsuarioSupabaseBasicoV41(u){
+    try{
+      const client = (typeof obterSupabaseSIGEE==='function') ? obterSupabaseSIGEE() : (window.supabaseClient || null);
+      const tabela = (window.SIGEE_SUPABASE_TABELAS && window.SIGEE_SUPABASE_TABELAS.usuarios) || 'usuarios_sigee';
+      if(!client || !client.from) return false;
+      // Grava apenas colunas seguras já usadas pelo SIGEE. NTE/senha ficam preservados localmente quando não existirem no banco.
+      const payload = { nome:u.nome, email:u.email, perfil:u.perfil, ativo:u.ativo!==false };
+      const { error } = await client.from(tabela).upsert(payload, { onConflict:'email' });
+      if(error) throw error;
+      return true;
+    }catch(e){ console.warn('SIGEE V41: Supabase recusou salvamento básico do usuário; cache local preservado.', e); return false; }
+  }
+
+  // Aplica cache local assim que a página abre e também depois de qualquer sincronização do Supabase.
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ carregarUsuariosLocalV41(); if(typeof carregarListaUsuarios==='function') carregarListaUsuarios(); }, 100);
+    setTimeout(function(){ carregarUsuariosLocalV41(); if(typeof carregarListaUsuarios==='function') carregarListaUsuarios(); }, 1500);
+  });
+
+  const carregarV32 = window.carregarDadosOperacionaisV32;
+  if(typeof carregarV32 === 'function'){
+    window.carregarDadosOperacionaisV32 = async function(){
+      const r = await carregarV32.apply(this, arguments);
+      carregarUsuariosLocalV41();
+      try{ if(typeof carregarListaUsuarios==='function') carregarListaUsuarios(); }catch(e){}
+      return r;
+    };
+    try{ carregarDadosOperacionaisV32 = window.carregarDadosOperacionaisV32; }catch(e){}
+  }
+
+  // Substitui salvamento do formulário para não perder perfil/NTE/senha ao sair do sistema.
+  window.salvarNovoUsuarioFormularioMaster = async function(event){
+    if(event) event.preventDefault();
+    const id = txt(document.getElementById('user-form-id')?.value);
+    const novo = normalizarUsuarioV41({
+      id: id || Date.now(),
+      nome: document.getElementById('user-form-nome')?.value,
+      email: document.getElementById('user-form-email')?.value,
+      senha: document.getElementById('user-form-senha')?.value || '123',
+      nte: document.getElementById('user-form-nte')?.value || 'NTE-26 Salvador',
+      perfil: document.getElementById('user-form-perfil')?.value || 'Tecnico',
+      ativo: true
+    });
+    if(!novo.nome || !novo.email){ alert('Informe nome e e-mail do usuário.'); return; }
+    const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB!=='undefined'?usuariosDB:[]);
+    const idx = base.findIndex(u => low(u.email)===novo.email || String(u.id)===String(id));
+    if(idx>=0) base[idx] = Object.assign({}, base[idx], novo); else base.push(novo);
+    window.usuariosDB = base; try{ usuariosDB = base; }catch(e){}
+    salvarUsuariosLocalV41();
+    await salvarUsuarioSupabaseBasicoV41(novo);
+    try{ if(typeof registrarLog==='function') registrarLog((id?'Atualizou':'Cadastrou')+' usuário: '+novo.email+' | Perfil: '+novo.perfil+' | NTE: '+novo.nte); }catch(e){}
+    try{ if(typeof fecharModalUsuario==='function') fecharModalUsuario(); }catch(e){ const m=document.getElementById('modal-cadastro-usuario'); if(m) m.classList.add('hidden'); }
+    try{ if(typeof carregarListaUsuarios==='function') carregarListaUsuarios(); }catch(e){}
+    alert('Usuário salvo. As informações complementares de perfil/NTE/senha foram preservadas no SIGEE.');
+  };
+  try{ salvarNovoUsuarioFormularioMaster = window.salvarNovoUsuarioFormularioMaster; }catch(e){}
+
+  // Desativar/ativar também persiste.
+  const oldToggle = window.toggleStatusUsuarioMaster || (typeof toggleStatusUsuarioMaster!=='undefined'?toggleStatusUsuarioMaster:null);
+  window.toggleStatusUsuarioMaster = async function(id){
+    const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB!=='undefined'?usuariosDB:[]);
+    const u = base.find(x => String(x.id)===String(id));
+    if(!u){ if(typeof oldToggle==='function') return oldToggle.apply(this, arguments); return; }
+    u.ativo = !(u.ativo!==false);
+    salvarUsuariosLocalV41();
+    await salvarUsuarioSupabaseBasicoV41(normalizarUsuarioV41(u));
+    try{ if(typeof registrarLog==='function') registrarLog((u.ativo?'Ativou':'Desativou')+' usuário: '+u.email); }catch(e){}
+    try{ carregarListaUsuarios(); }catch(e){}
+  };
+  try{ toggleStatusUsuarioMaster = window.toggleStatusUsuarioMaster; }catch(e){}
+
+  // Resetar senha também persiste no cache local.
+  const oldReset = window.resetarSenhaUsuarioMaster || (typeof resetarSenhaUsuarioMaster!=='undefined'?resetarSenhaUsuarioMaster:null);
+  window.resetarSenhaUsuarioMaster = async function(id){
+    const base = Array.isArray(window.usuariosDB) ? window.usuariosDB : (typeof usuariosDB!=='undefined'?usuariosDB:[]);
+    const u = base.find(x => String(x.id)===String(id));
+    if(!u){ if(typeof oldReset==='function') return oldReset.apply(this, arguments); return; }
+    const nova = prompt('Informe a nova senha provisória:', u.senha || '123');
+    if(!nova) return;
+    u.senha = txt(nova);
+    salvarUsuariosLocalV41();
+    await salvarUsuarioSupabaseBasicoV41(normalizarUsuarioV41(u));
+    try{ if(typeof registrarLog==='function') registrarLog('Resetou senha do usuário: '+u.email); }catch(e){}
+    try{ carregarListaUsuarios(); }catch(e){}
+    alert('Senha atualizada no SIGEE. Observação: a tabela usuarios_sigee não possui coluna senha; por isso a senha fica preservada na camada complementar local deste navegador.');
+  };
+  try{ resetarSenhaUsuarioMaster = window.resetarSenhaUsuarioMaster; }catch(e){}
+
+  // Garante que o login considere os dados complementares salvos.
+  const oldLogin = window.handleLogin || (typeof handleLogin!=='undefined'?handleLogin:null);
+  if(typeof oldLogin === 'function'){
+    window.handleLogin = function(event){
+      carregarUsuariosLocalV41();
+      return oldLogin.apply(this, arguments);
+    };
+    try{ handleLogin = window.handleLogin; }catch(e){}
+  }
+
+  window.SIGEE_V41 = {salvarUsuariosLocalV41, carregarUsuariosLocalV41};
+})();
+</script>
+
 </body>
 </html>
