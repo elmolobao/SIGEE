@@ -5200,5 +5200,219 @@
   });
 })();
 </script>
+
+<script>
+/* =====================================================================
+   SIGEE V35 - Correção da importação de planilhas para ESCOLAS e PROCESSOS
+   Mantém: layout V30+, Grupo SEC, perfis, Supabase, exportações e fluxos.
+   Regra: importação somente Master, Administrador e Grupo SEC.
+   ===================================================================== */
+(function(){
+  function txt(v){ return (v===undefined || v===null) ? '' : String(v).trim(); }
+  function up(v){ try{ return txt(v).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }catch(e){ return txt(v).toUpperCase(); } }
+  function titulo(v){ return txt(v).replace(/\s+/g,' ').trim(); }
+  function normal(v){ return up(v).replace(/[^A-Z0-9]/g,''); }
+  function getPerfil(u){ return txt(u && u.perfil).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function isSECUser(u){ return !!u && (up(u.grupo).includes('SEC') || up(u.nte).includes('SEC') || txt(u.email).toLowerCase()==='sec@enova.educacao.ba.gov.br'); }
+  function podeImportarV35(u){ const p=getPerfil(u); return p==='master' || p==='administrador' || isSECUser(u); }
+  function getCell(row, nomes){
+    const keys = Object.keys(row||{});
+    const alvo = nomes.map(normal);
+    let key = keys.find(k => alvo.includes(normal(k)));
+    if(!key){
+      key = keys.find(k => alvo.some(a => normal(k).includes(a) || a.includes(normal(k))));
+    }
+    return key ? txt(row[key]) : '';
+  }
+  function obterNumeroNteV35(v){
+    const t=txt(v); const m=t.match(/NTE\s*[- ]?\s*(\d{1,2})/i) || t.match(/^(\d{1,2})$/);
+    if(m) return Number(m[1]);
+    const n=Number(v); return (!Number.isNaN(n) && n>0 && n<100) ? n : null;
+  }
+  function nteNomeV35(v){
+    if(typeof obterNomeNtePorIdSIGEE === 'function'){
+      const n=obterNumeroNteV35(v); if(n) return obterNomeNtePorIdSIGEE(n) || txt(v);
+    }
+    return txt(v) || 'NTE-26 Salvador';
+  }
+  function nextId(lista, base){
+    try{ return (Array.isArray(lista)&&lista.length) ? Math.max(...lista.map(x=>Number(x.id)||0)) + 1 : base; }catch(e){ return base; }
+  }
+  function linhaEhEscola(row){
+    const mec = getCell(row,['cod_mec','codigo_mec','código mec','cod mec','mec','cód mec']);
+    const nome = getCell(row,['nome_escola','nome da escola','nome escola','nome','instituicao','instituição','escola']);
+    const aluno = getCell(row,['aluno','aluno_nome','nome do aluno','nome completo do aluno','requerente','nome_solicitante']);
+    return !!(mec && nome && !aluno);
+  }
+  function linhaEhProcesso(row){
+    const aluno = getCell(row,['aluno','aluno_nome','nome do aluno','nome completo do aluno','requerente','nome_solicitante','solicitante']);
+    const etapa = getCell(row,['etapa','etapa_atual','fase','fase_atual','status']);
+    const doc = getCell(row,['documento','documento_tipo','tipo de documento','documento_solicitado']);
+    return !!(aluno && (etapa || doc || getCell(row,['escola','escola_nome','instituicao','instituição','nome_escola'])));
+  }
+  function converterEscolaV35(row){
+    const mec = getCell(row,['cod_mec','codigo_mec','código mec','cod mec','mec','cód mec']);
+    const nome = getCell(row,['nome_escola','nome da escola','nome escola','nome','instituicao','instituição','escola']);
+    const municipio = getCell(row,['municipio','município','cidade']);
+    const nte = getCell(row,['nte','nte vinculado','nte correspondente','núcleo','nucleo','territorio','território']);
+    const nteId = getCell(row,['nte_id','id nte','codigo nte','código nte']);
+    const dep = getCell(row,['dependencia_adm','dependência administrativa','dependencia administrativa','dependencia','dep. administrativo','dep administrativo','dep adm']);
+    const sit = getCell(row,['situacao_funcional','situação funcional','situacao funcional','situação','situacao','status escola','status']);
+    const acervo = getCell(row,['status_acervo','status do acervo','acervo','situação do acervo','situacao do acervo']);
+    const local = getCell(row,['local_acervo','local do acervo','local físico do acervo','local fisico do acervo','local']);
+    const nteNum = obterNumeroNteV35(nteId || nte) || 26;
+    return {
+      id: null,
+      cod_mec: txt(mec),
+      nome: titulo(nome).toUpperCase(),
+      nome_escola: titulo(nome).toUpperCase(),
+      municipio: titulo(municipio).toUpperCase(),
+      nte: nteNomeV35(nte || nteNum),
+      nte_id: nteNum,
+      dependencia: dep || 'Estadual',
+      dependencia_adm: dep || 'Estadual',
+      situacao: sit || 'Extinta',
+      situacao_funcional: sit || 'Extinta',
+      acervo: acervo || 'Recolhido',
+      status_acervo: acervo || 'Recolhido',
+      local_acervo: local || 'Acervo do NTE',
+      ativo: true
+    };
+  }
+  function converterProcessoV35(row){
+    const aluno = getCell(row,['aluno','aluno_nome','nome do aluno','nome completo do aluno','requerente','nome_solicitante','solicitante']);
+    const escola = getCell(row,['escola','escola_nome','nome_escola','nome da escola','instituicao','instituição']);
+    const cod = getCell(row,['cod_mec','codigo_mec','código mec','mec']);
+    let escolaLocal = null;
+    try{ escolaLocal = (escolasDB||[]).find(e => txt(e.cod_mec)===txt(cod) || up(e.nome||e.nome_escola)===up(escola)); }catch(e){}
+    const nte = getCell(row,['nte','nte vinculado','nte correspondente']) || (escolaLocal && escolaLocal.nte) || 'NTE-26 Salvador';
+    return {
+      id: Number(getCell(row,['id','processo','codigo','código'])) || null,
+      aluno: titulo(aluno).toUpperCase(),
+      aluno_nome: titulo(aluno).toUpperCase(),
+      escola: titulo(escola || (escolaLocal && (escolaLocal.nome||escolaLocal.nome_escola))).toUpperCase(),
+      escola_nome: titulo(escola || (escolaLocal && (escolaLocal.nome||escolaLocal.nome_escola))).toUpperCase(),
+      documento: getCell(row,['documento','documento_tipo','tipo de documento','documento_solicitado']) || 'HISTÓRICO',
+      documento_tipo: getCell(row,['documento','documento_tipo','tipo de documento','documento_solicitado']) || 'HISTÓRICO',
+      etapa: getCell(row,['etapa','etapa_atual','fase','fase_atual','status']) || 'Desarquivamento',
+      etapa_atual: getCell(row,['etapa','etapa_atual','fase','fase_atual','status']) || 'Desarquivamento',
+      data_etapa_atual: getCell(row,['data_etapa_atual','data etapa','data','created_at','criado_em']) || (typeof obterDataAtualFormatada==='function' ? obterDataAtualFormatada() : new Date().toLocaleDateString('pt-BR')),
+      nte: nteNomeV35(nte),
+      municipio: getCell(row,['municipio','município','cidade']) || (escolaLocal && escolaLocal.municipio) || '',
+      modalidade: getCell(row,['modalidade','oferta_modalidade']) || null,
+      ensino: getCell(row,['ensino','nivel_oferta','oferta_nivel']) || null,
+      prioridade: getCell(row,['prioridade']) || null,
+      tecnico_responsavel: getCell(row,['tecnico','técnico','tecnico_responsavel','responsavel','responsável']) || null
+    };
+  }
+  async function upsertV35(tabela, payload, conflito){
+    const client = (typeof obterSupabaseSIGEE==='function') ? obterSupabaseSIGEE() : null;
+    if(!client || !payload.length) return true;
+    const loteTam=100;
+    for(let i=0;i<payload.length;i+=loteTam){
+      const lote=payload.slice(i,i+loteTam);
+      const {error}=await client.from(tabela).upsert(lote,{onConflict:conflito,ignoreDuplicates:false});
+      if(error) throw error;
+    }
+    return true;
+  }
+  async function salvarImportacaoV35(escolasAlteradas, processosAlterados){
+    const erros=[];
+    try{
+      if(escolasAlteradas.length){
+        const payload = escolasAlteradas.map(e => (typeof escolaParaSupabaseSIGEE==='function' ? escolaParaSupabaseSIGEE(e) : e))
+          .filter(e => e.cod_mec && e.nome_escola && e.municipio && e.nte_id && e.dependencia_adm && e.situacao_funcional && e.acervo && e.status_acervo);
+        await upsertV35('escolas_sigee', payload, 'cod_mec');
+      }
+    }catch(e){ console.error('SIGEE V35 erro importando escolas:', e); erros.push('escolas_sigee: '+(e.message||JSON.stringify(e))); }
+    try{
+      if(processosAlterados.length){
+        let proximo = nextId(processosDB,101);
+        const payload = processosAlterados.map(p => {
+          if(!p.id) p.id = proximo++;
+          return (typeof processoParaSupabaseSIGEE==='function' ? processoParaSupabaseSIGEE(p) : p);
+        }).filter(p => p.id && p.aluno_nome);
+        await upsertV35('processos', payload, 'id');
+      }
+    }catch(e){ console.error('SIGEE V35 erro importando processos:', e); erros.push('processos: '+(e.message||JSON.stringify(e))); }
+    return erros;
+  }
+  window.processarImportacaoOtimizada = async function(event){
+    const u = window.usuarioLogado || (typeof usuarioLogado !== 'undefined' ? usuarioLogado : null);
+    if(!podeImportarV35(u)){
+      alert('Importação permitida apenas para Master, Administrador ou Grupo SEC.');
+      if(event && event.target) event.target.value='';
+      return;
+    }
+    const arquivo = event && event.target && event.target.files ? event.target.files[0] : null;
+    if(!arquivo) return;
+    const card=document.getElementById('card-progresso-importacao');
+    const label=document.getElementById('label-status-importacao');
+    const barra=document.getElementById('barra-progresso-importacao');
+    const pctTxt=document.getElementById('percentual-importacao-texto');
+    if(card) card.classList.remove('hidden');
+    if(label) label.innerText='Carregando planilha e identificando escolas/processos...';
+    if(barra) barra.style.width='5%';
+    if(pctTxt) pctTxt.innerText='5%';
+    try{
+      const data = await arquivo.arrayBuffer();
+      const livro = XLSX.read(data, {type:'array'});
+      let escolasLidas=[], processosLidos=[];
+      livro.SheetNames.forEach(nomeAba=>{
+        const linhas = XLSX.utils.sheet_to_json(livro.Sheets[nomeAba], {defval:''});
+        linhas.forEach(row=>{
+          if(linhaEhEscola(row)) escolasLidas.push(converterEscolaV35(row));
+          else if(linhaEhProcesso(row)) processosLidos.push(converterProcessoV35(row));
+          else {
+            // tentativa extra para planilhas de processos sem etapa/documento, mas com aluno
+            if(getCell(row,['aluno','aluno_nome','nome do aluno','nome completo do aluno','nome_solicitante'])) processosLidos.push(converterProcessoV35(row));
+          }
+        });
+      });
+      if(label) label.innerText=`Processando ${escolasLidas.length} escolas e ${processosLidos.length} processos...`;
+      if(barra) barra.style.width='35%';
+      if(pctTxt) pctTxt.innerText='35%';
+
+      let insEsc=0, atuEsc=0, insProc=0, atuProc=0;
+      const alterEsc=[]; const alterProc=[];
+      escolasLidas.forEach(e=>{
+        if(!e.cod_mec || !e.nome || !e.municipio) return;
+        const idx=(escolasDB||[]).findIndex(x=>txt(x.cod_mec)===txt(e.cod_mec));
+        if(idx>=0){ escolasDB[idx] = {...escolasDB[idx], ...e, id: escolasDB[idx].id}; atuEsc++; alterEsc.push(escolasDB[idx]); }
+        else { e.id=nextId(escolasDB,1); escolasDB.push(e); insEsc++; alterEsc.push(e); }
+      });
+      processosLidos.forEach(p=>{
+        if(!p.aluno) return;
+        const id=Number(p.id);
+        const idx=id ? (processosDB||[]).findIndex(x=>Number(x.id)===id) : -1;
+        if(idx>=0){ processosDB[idx] = {...processosDB[idx], ...p, id: processosDB[idx].id}; atuProc++; alterProc.push(processosDB[idx]); }
+        else { p.id=nextId(processosDB,101); processosDB.push(p); insProc++; alterProc.push(p); }
+      });
+      if(barra) barra.style.width='65%';
+      if(pctTxt) pctTxt.innerText='65%';
+      if(label) label.innerText='Gravando escolas e processos no Supabase...';
+      const erros = await salvarImportacaoV35(alterEsc, alterProc);
+      if(barra) barra.style.width='100%';
+      if(pctTxt) pctTxt.innerText='100%';
+      try{ if(typeof registrarLog==='function') registrarLog(`Importação concluída. Escolas: +${insEsc}/atualizadas ${atuEsc}. Processos: +${insProc}/atualizados ${atuProc}.`); }catch(e){}
+      try{ if(typeof renderizarListaEscolasBufferMemoria==='function') renderizarListaEscolasBufferMemoria(); }catch(e){}
+      try{ if(typeof carregarEContarProcessosHorizontais==='function') carregarEContarProcessosHorizontais(); }catch(e){}
+      try{ if(typeof carregarDadosDashboardReal==='function') carregarDadosDashboardReal(); }catch(e){}
+      if(erros.length){
+        alert(`Importação processada na tela, mas houve falha ao gravar no Supabase:\n\n${erros.join('\n')}\n\nVerifique colunas obrigatórias, RLS e permissões INSERT/UPDATE.`);
+      }else{
+        alert(`Importação concluída e gravada no Supabase.\n\nEscolas: ${insEsc} inseridas, ${atuEsc} atualizadas.\nProcessos: ${insProc} inseridos, ${atuProc} atualizados.`);
+      }
+    }catch(e){
+      console.error('SIGEE V35 erro geral na importação:', e);
+      alert('Erro na importação da planilha. Detalhe: '+(e.message||e));
+    }finally{
+      setTimeout(()=>{ if(card) card.classList.add('hidden'); if(event && event.target) event.target.value=''; }, 800);
+    }
+  };
+  try{ processarImportacaoOtimizada = window.processarImportacaoOtimizada; }catch(e){}
+})();
+</script>
+
 </body>
 </html>
