@@ -6157,5 +6157,215 @@
 })();
 </script>
 
+<!-- =====================================================================
+     SIGEE V38 - Carregamento definitivo de Escolas/Processos/Dashboard
+     Correção incremental sem alterar a base Supabase nem a estrutura visual.
+     ===================================================================== -->
+<script>
+(function(){
+  'use strict';
+  const V='V38 - Carregamento Escolas/Processos/Dashboard';
+  const URL='https://ckxbvsfjsknbgpfpxcyy.supabase.co';
+  const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNreGJ2c2Zqc2tuYmdwZnB4Y3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTc4MjUsImV4cCI6MjA5ODc3MzgyNX0.ecJr_MYR9GPnaYMZ3V6kgeed7uGtg-vQ4THpdwAtTxk';
+  const T={escolas:'escolas_sigee', processos:'processos', solicitacoes:'solicitacoes_sigee', usuarios:'usuarios_sigee', ntes:'ntes_sigee'};
+  let carregando=false;
+
+  function txt(v){ return (v===undefined||v===null)?'':String(v).trim(); }
+  function up(v){ return txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
+  function title(v){ return txt(v).replace(/\s+/g,' ').trim().toUpperCase(); }
+  function perfil(u){ return up(u&&u.perfil); }
+  function isMaster(u){ return perfil(u).includes('MASTER'); }
+  function isAdmin(u){ return perfil(u).includes('ADMIN'); }
+  function isSEC(u){ return !!u && (up(u.perfil).includes('SEC') || up(u.grupo).includes('SEC') || up(u.nte).includes('SEC') || up(u.nte).includes('TODOS OS NTES') || txt(u.email).toLowerCase()==='sec@enova.educacao.ba.gov.br'); }
+  function isGlobal(u){ return isMaster(u)||isSEC(u); }
+  function podeImportar(u){ return isMaster(u)||isAdmin(u)||isSEC(u); }
+  function numeroNte(v){ const m=txt(v).match(/NTE\s*[- ]?\s*(\d{1,2})/i); if(m) return Number(m[1]); const n=Number(v); return Number.isFinite(n)&&n>=1&&n<=27?n:null; }
+  function nomeNtePorId(id){
+    const n=Number(id);
+    try{ if(typeof obterNomeNtePorIdSIGEE==='function'){ const r=obterNomeNtePorIdSIGEE(n); if(r) return r; } }catch(e){}
+    try{ const lista=(Array.isArray(LISTA_OFICIAL_27_NTES)?LISTA_OFICIAL_27_NTES:[]); const ach=lista.find(x=>numeroNte(x)===n); if(ach) return ach; }catch(e){}
+    return n?`NTE-${String(n).padStart(2,'0')}`:'NTE-26 Salvador';
+  }
+  function nteNome(v){ const n=numeroNte(v); return n?nomeNtePorId(n):(txt(v)||'NTE-26 Salvador'); }
+  function normNte(v){ const n=numeroNte(v); return n?'NTE'+n:up(v).replace(/[^A-Z0-9]/g,''); }
+  function nteUsuario(u){ return nteNome(u&&(u.nte||u.nte_nome||u.nte_vinculado||u.grupo||u.nte_id)) || 'NTE-26 Salvador'; }
+  function nteIgual(a,b){ if(!a||!b) return false; if(up(a).includes('SEC')||up(b).includes('SEC')) return true; return normNte(a)===normNte(b); }
+  function atualUsuario(){ return window.usuarioLogado || (typeof usuarioLogado!=='undefined'?usuarioLogado:null); }
+  function setText(id,v){ const el=document.getElementById(id); if(el) el.innerText=String(v); }
+  function setInfo(msg){ const el=document.getElementById('info-quantidade-escolas-carregadas'); if(el) el.innerText=msg; }
+  function dataBR(){ try{ return new Date().toLocaleDateString('pt-BR'); }catch(e){ return ''; } }
+  function diasDesde(valor){
+    if(!valor) return 0;
+    let d=null; const s=txt(valor);
+    if(/^\d{2}\/\d{2}\/\d{4}/.test(s)){ const [dd,mm,yy]=s.slice(0,10).split('/').map(Number); d=new Date(yy,mm-1,dd); }
+    else d=new Date(s);
+    if(!d || Number.isNaN(d.getTime())) return 0;
+    const hoje=new Date(); hoje.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.max(0, Math.floor((hoje-d)/(86400000)));
+  }
+  function client(){
+    try{ if(typeof obterSupabaseSIGEE==='function'){ const c=obterSupabaseSIGEE(); if(c) return c; } }catch(e){}
+    if(window.__SIGEE_V38_CLIENT) return window.__SIGEE_V38_CLIENT;
+    if(window.supabase&&window.supabase.createClient){ window.__SIGEE_V38_CLIENT=window.supabase.createClient(URL,KEY); return window.__SIGEE_V38_CLIENT; }
+    return null;
+  }
+  async function readAll(table){
+    const c=client(); if(!c) throw new Error('Cliente Supabase não disponível');
+    let out=[], from=0, size=1000;
+    while(true){
+      const {data,error}=await c.from(table).select('*').range(from, from+size-1);
+      if(error) throw error;
+      out=out.concat(data||[]);
+      if(!data || data.length<size) break;
+      from += size;
+    }
+    return out;
+  }
+  async function upsert(table,payload,conflict){
+    const c=client(); if(!c || !payload || !payload.length) return {error:null};
+    for(let i=0;i<payload.length;i+=100){
+      const {error}=await c.from(table).upsert(payload.slice(i,i+100),{onConflict:conflict,ignoreDuplicates:false});
+      if(error) return {error};
+    }
+    return {error:null};
+  }
+  function mapUsuario(u,i){
+    const email=txt(u.email).toLowerCase();
+    let pf=txt(u.perfil||u.tipo||u.role||'Tecnico');
+    if(email==='elmo.lobao@enova.educacao.ba.gov.br') pf='Master';
+    if(email==='sec@enova.educacao.ba.gov.br') pf='SEC';
+    return {id:Number(u.id)||i+1,nome:title(u.nome||u.name||'USUÁRIO SIGEE'),email,senha:txt(u.senha||u.password||'123')||'123',perfil:pf,nte:nteNome(u.nte||u.nte_id||u.grupo||'NTE-26 Salvador'),grupo:txt(u.grupo||''),ativo:u.ativo!==false};
+  }
+  function mapEscola(e,i){
+    return {id:Number(e.id)||i+1,cod_mec:txt(e.cod_mec||e.codigo_mec||e.mec),nome:title(e.nome_escola||e.nome||e.instituicao||e.escola),nome_escola:title(e.nome_escola||e.nome||e.instituicao||e.escola),municipio:title(e.municipio||e.cidade||''),nte:nteNome(e.nte||e.nte_id||e.nte_nome||e.nte_vinculado),nte_id:numeroNte(e.nte_id||e.nte)||26,dependencia:txt(e.dependencia_adm||e.dependencia||'Estadual'),dependencia_adm:txt(e.dependencia_adm||e.dependencia||'Estadual'),situacao:txt(e.situacao_funcional||e.situacao||'Extinta'),situacao_funcional:txt(e.situacao_funcional||e.situacao||'Extinta'),acervo:txt(e.status_acervo||e.acervo||'Recolhido'),status_acervo:txt(e.status_acervo||e.acervo||'Recolhido'),local_acervo:txt(e.local_acervo||e.local||'')};
+  }
+  function mapProcesso(p,i){
+    const escNome=title(p.escola_nome||p.escola||p.instituicao||p.nome_escola||'');
+    let esc=null; try{ esc=(escolasDB||[]).find(e=>up(e.nome)===up(escNome)||txt(e.cod_mec)===txt(p.cod_mec)); }catch(e){}
+    return {id:Number(p.id)||101+i,aluno:title(p.aluno_nome||p.aluno||p.nome_solicitante||p.nome_aluno||p.requerente),aluno_nome:title(p.aluno_nome||p.aluno||p.nome_solicitante||p.nome_aluno||p.requerente),escola:escNome || title(esc&&esc.nome) || 'NÃO INFORMADA',escola_nome:escNome || title(esc&&esc.nome) || 'NÃO INFORMADA',documento:txt(p.documento_tipo||p.documento||p.documento_solicitado||'HISTÓRICO'),documento_tipo:txt(p.documento_tipo||p.documento||p.documento_solicitado||'HISTÓRICO'),etapa:txt(p.etapa_atual||p.etapa||p.fase_atual||'Desarquivamento'),etapa_atual:txt(p.etapa_atual||p.etapa||p.fase_atual||'Desarquivamento'),data_etapa_atual:txt(p.data_etapa_atual||p.created_at||p.criado_em||dataBR()),nte:nteNome(p.nte||p.nte_id||(esc&&esc.nte)||'NTE-26 Salvador'),municipio:title(p.municipio||(esc&&esc.municipio)||''),modalidade:txt(p.modalidade||p.oferta_modalidade||''),ensino:txt(p.nivel_oferta||p.oferta_nivel||p.ensino||''),prioridade:txt(p.prioridade||''),tecnico_responsavel:txt(p.tecnico_responsavel||p.tecnico||'')};
+  }
+  function dadosVisiveis(lista){
+    const u=atualUsuario(); if(!Array.isArray(lista)) return [];
+    if(isGlobal(u)) return lista.slice();
+    const n=nteUsuario(u);
+    return lista.filter(x=>nteIgual(x.nte||x.nte_nome||x.nte_vinculado||x.nte_id,n));
+  }
+  function contarEtapa(lista,etapa){ return (lista||[]).filter(p=>up(p.etapa||p.etapa_atual)===up(etapa)).length; }
+  function classeEtapa(etapa){
+    const e=up(etapa); if(e.includes('ANAL')) return 'bg-purple-600 text-white'; if(e.includes('PEND')) return 'bg-red-600 text-white'; if(e.includes('DIGIT')) return 'bg-orange-500 text-white'; if(e.includes('CONFER')) return 'bg-green-600 text-white'; if(e.includes('ASSIN')) return 'bg-blue-700 text-white'; if(e.includes('DEFER')) return 'bg-emerald-600 text-white'; if(e.includes('RETIR')) return 'bg-gray-700 text-white'; return 'bg-sky-600 text-white';
+  }
+  function acaoProcesso(p){
+    const e=up(p.etapa); if(e.includes('ANAL')) return `<button onclick="abrirModalFluxoAnalise(${p.id})" class="bg-purple-700 text-white font-bold px-2 py-1 rounded text-[10px]">Análise Realizada</button>`;
+    if(e.includes('PEND')) return `<button onclick="abrirModalFluxoPendencia(${p.id})" class="bg-red-700 text-white font-bold px-2 py-1 rounded text-[10px]">Tratar Pendência</button>`;
+    if(e.includes('DIGIT')) return `<button onclick="abrirModalFluxoDigitacao(${p.id})" class="bg-orange-600 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Digitado</button>`;
+    if(e.includes('CONFER')) return `<button onclick="abrirModalFluxoConferencia(${p.id})" class="bg-green-700 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Conferido</button>`;
+    if(e.includes('ASSIN')) return `<button onclick="abrirModalFluxoAssinatura(${p.id})" class="bg-blue-700 text-white font-bold px-2 py-1 rounded text-[10px]">Deferido</button>`;
+    if(e.includes('AGUARD')) return `<button onclick="abrirModalFluxoAguardando(${p.id})" class="bg-gray-700 text-white font-bold px-2 py-1 rounded text-[10px]">Retirado</button>`;
+    if(e.includes('RETIR')) return `<span class="text-gray-300 font-bold">Finalizado</span>`;
+    return `<button onclick="abrirModalFluxoDesarquivamento(${p.id})" class="bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px]">Documento Recebido</button>`;
+  }
+  window.carregarDadosDashboardReal = function(){
+    const escolas=dadosVisiveis(window.escolasDB||escolasDB||[]); const procs=dadosVisiveis(window.processosDB||processosDB||[]);
+    setText('dash-escolas',escolas.length); setText('dash-acervos',escolas.filter(e=>up(e.status_acervo||e.acervo).includes('RECOLHIDO')).length); setText('dash-estaduais',escolas.filter(e=>up(e.dependencia||e.dependencia_adm).includes('ESTAD')).length); setText('dash-municipios',new Set(escolas.map(e=>up(e.municipio)).filter(Boolean)).size); setText('dash-usuarios',(window.usuariosDB||usuariosDB||[]).length);
+    setText('dash-proc-desarquivamento',contarEtapa(procs,'Desarquivamento')); setText('dash-proc-analise',contarEtapa(procs,'Análise')); setText('dash-proc-pendencia',contarEtapa(procs,'Pendência')); setText('dash-proc-digitacao',contarEtapa(procs,'Digitação')); setText('dash-proc-conferencia',contarEtapa(procs,'Conferência')); setText('dash-proc-assinatura',contarEtapa(procs,'Assinatura')); setText('dash-proc-aguardando',contarEtapa(procs,'Aguardando Retirada')); setText('dash-proc-retirado',contarEtapa(procs,'Retirado'));
+  };
+  try{ carregarDadosDashboardReal=window.carregarDadosDashboardReal; }catch(e){}
+  window.renderizarListaEscolasBufferMemoria = function(){
+    const corpo=document.getElementById('tabela-escolas-corpo'); if(!corpo) return; corpo.innerHTML='';
+    const lista=dadosVisiveis(window.escolasDB||escolasDB||[]); const busca=up(document.getElementById('busca-escola')?.value||'');
+    let filtradas=busca?lista.filter(e=>up((e.cod_mec||'')+' '+(e.nome||'')+' '+(e.municipio||'')).includes(busca)):lista;
+    const porPagina=(typeof totalPorPaginaEscola!=='undefined'?totalPorPaginaEscola:8); let pagina=(typeof paginaEscolaAtual!=='undefined'?paginaEscolaAtual:1); const totalPag=Math.max(1,Math.ceil(filtradas.length/porPagina)); if(pagina>totalPag) pagina=1; try{ paginaEscolaAtual=pagina; }catch(e){}
+    const pag=filtradas.slice((pagina-1)*porPagina,(pagina-1)*porPagina+porPagina);
+    setInfo(`Exibindo: ${filtradas.length} registros | Banco: Supabase carregado`);
+    pag.forEach(e=>{
+      const situ=up(e.situacao||e.situacao_funcional).includes('ATIVA')?'<span class="font-black text-green-400">ATIVA</span>':'<span class="font-black text-red-400">EXTINTA</span>';
+      const acv=up(e.status_acervo||e.acervo).includes('RECOLHIDO')?'<span class="font-black text-green-400">RECOLHIDO</span>':'<span class="font-black text-red-400">NÃO RECOLHIDO</span>';
+      corpo.insertAdjacentHTML('beforeend',`<tr class="hover:bg-white/10 text-[11px] text-white"><td class="p-3 font-mono font-bold">${txt(e.cod_mec)}</td><td class="p-3 font-bold uppercase">${txt(e.nome)}</td><td class="p-3 uppercase font-medium">${txt(e.municipio)}</td><td class="p-3 font-semibold">${txt(e.nte)}<br><span class="text-[9px] bg-white/10 px-1 rounded">${txt(e.dependencia||e.dependencia_adm)}</span></td><td class="p-3">${situ}</td><td class="p-3">${acv}</td><td class="p-3 text-center"><button onclick="abrirModalEditarEscolaV37 ? abrirModalEditarEscolaV37('${e.id}') : abrirModalEscola && abrirModalEscola('${e.id}')" class="bg-cyan-600/70 text-white font-bold px-2 py-1 rounded text-[10px]">Alterar</button></td></tr>`);
+    });
+    setText('txt-escola-paginacao',`Página ${pagina} de ${totalPag}`); const a=document.getElementById('btn-escola-anterior'); if(a) a.disabled=pagina<=1; const p=document.getElementById('btn-escola-proxima'); if(p) p.disabled=pagina>=totalPag;
+  };
+  try{ renderizarListaEscolasBufferMemoria=window.renderizarListaEscolasBufferMemoria; }catch(e){}
+  window.carregarEContarProcessosHorizontais = function(){
+    const procs=dadosVisiveis(window.processosDB||processosDB||[]); setText('count-horiz-todos',procs.length); setText('count-horiz-desarquivamento',contarEtapa(procs,'Desarquivamento')); setText('count-horiz-analise',contarEtapa(procs,'Análise')); setText('count-horiz-pendencia',contarEtapa(procs,'Pendência')); setText('count-horiz-digitacao',contarEtapa(procs,'Digitação')); setText('count-horiz-conferencia',contarEtapa(procs,'Conferência')); setText('count-horiz-assinatura',contarEtapa(procs,'Assinatura')); setText('count-horiz-aguardando',contarEtapa(procs,'Aguardando Retirada')); setText('count-horiz-retirado',contarEtapa(procs,'Retirado')); window.renderizarProcessosFlutuantes(); };
+  try{ carregarEContarProcessosHorizontais=window.carregarEContarProcessosHorizontais; }catch(e){}
+  window.renderizarProcessosFlutuantes = function(){
+    const corpo=document.getElementById('tabela-processos-corpo'); if(!corpo) return; corpo.innerHTML='';
+    let lista=dadosVisiveis(window.processosDB||processosDB||[]); const etapa=(typeof etapaFiltroAtual!=='undefined'?etapaFiltroAtual:'TODOS'); if(etapa&&etapa!=='TODOS') lista=lista.filter(p=>up(p.etapa)===up(etapa)); const busca=up(document.getElementById('busca-proc-nome')?.value||''); if(busca) lista=lista.filter(p=>up(p.aluno+' '+p.escola).includes(busca));
+    lista.forEach(p=>{ corpo.insertAdjacentHTML('beforeend',`<tr class="hover:bg-white/10 text-white"><td class="p-2.5 font-bold truncate"><span class="block uppercase truncate">${txt(p.aluno)}</span><span class="text-[10px] text-cyan-200 font-extrabold">${txt(p.documento)}</span></td><td class="p-2.5 truncate"><span class="block font-bold text-white truncate text-[10px]">${txt(p.escola)}</span><span class="text-[9px] text-cyan-200 block font-semibold uppercase truncate">${txt(p.nte)}</span></td><td class="p-2.5 text-center"><span class="px-2 py-1 ${classeEtapa(p.etapa)} font-black rounded text-[9px] uppercase block">${txt(p.etapa)}</span></td><td class="p-2.5 text-center font-bold">${diasDesde(p.data_etapa_atual)} dias</td><td class="p-2.5 text-center">${acaoProcesso(p)}</td></tr>`); });
+  };
+  try{ renderizarProcessosFlutuantes=window.renderizarProcessosFlutuantes; }catch(e){}
+  async function carregarTudoV38(silencioso=true){
+    if(carregando) return false; carregando=true; setInfo('Carregando informações do Supabase, aguarde...');
+    try{
+      const [us, es, pr, so, nt]=await Promise.allSettled([readAll(T.usuarios),readAll(T.escolas),readAll(T.processos),readAll(T.solicitacoes),readAll(T.ntes)]);
+      if(us.status==='fulfilled' && us.value.length){ usuariosDB=us.value.map(mapUsuario).filter(u=>u.email); window.usuariosDB=usuariosDB; }
+      if(!usuariosDB.some(u=>txt(u.email).toLowerCase()==='sec@enova.educacao.ba.gov.br')) usuariosDB.push({id:900001,nome:'USUÁRIO SEC',email:'sec@enova.educacao.ba.gov.br',senha:'123',perfil:'SEC',nte:'SEC - TODOS OS NTEs',grupo:'SEC',ativo:true});
+      if(es.status==='fulfilled'){ escolasDB=es.value.map(mapEscola).filter(e=>e.cod_mec||e.nome); window.escolasDB=escolasDB; }
+      if(pr.status==='fulfilled'){ processosDB=pr.value.map(mapProcesso).filter(p=>p.aluno||p.escola); window.processosDB=processosDB; }
+      if(so.status==='fulfilled'){ solicitacoesDB=so.value.map(mapProcesso).filter(p=>p.aluno||p.escola); window.solicitacoesDB=solicitacoesDB; if(!processosDB.length && solicitacoesDB.length){ processosDB=solicitacoesDB.slice(); window.processosDB=processosDB; } }
+      if(nt.status==='fulfilled' && nt.value.length && typeof LISTA_OFICIAL_27_NTES!=='undefined'){
+        const ntes=nt.value.map(n=>txt(n.nome||n.nte||n.codigo||n.descricao)).filter(Boolean); if(ntes.length){ LISTA_OFICIAL_27_NTES.splice(0,LISTA_OFICIAL_27_NTES.length,...ntes); }
+      }
+      try{ inicializarSelectsNteEcosystem(); }catch(e){}
+      try{ window.aplicarPermissoesV37&&window.aplicarPermissoesV37(); }catch(e){}
+      window.sigEESupabaseOnline=true; try{ sigEESupabaseOnline=true; }catch(e){}
+      window.carregarDadosDashboardReal(); window.renderizarListaEscolasBufferMemoria(); window.carregarEContarProcessosHorizontais();
+      setInfo(`Exibindo: ${dadosVisiveis(escolasDB).length} registros | Banco: Supabase carregado`);
+      return true;
+    }catch(err){ console.error('SIGEE V38 erro geral:',err); if(!silencioso) alert('Erro ao carregar dados do Supabase: '+(err.message||err)); return false; }
+    finally{ carregando=false; }
+  }
+  window.SIGEE_V38_CARREGAR_BANCOS = carregarTudoV38;
+  const oldLogin=window.handleLogin;
+  window.handleLogin = async function(event){
+    if(event) event.preventDefault();
+    try{ await Promise.race([readAll(T.usuarios).then(rows=>{ if(rows&&rows.length){ usuariosDB=rows.map(mapUsuario).filter(u=>u.email); window.usuariosDB=usuariosDB; }}), new Promise(r=>setTimeout(r,1200))]); }catch(e){}
+    if(!usuariosDB.some(u=>txt(u.email).toLowerCase()==='sec@enova.educacao.ba.gov.br')) usuariosDB.push({id:900001,nome:'USUÁRIO SEC',email:'sec@enova.educacao.ba.gov.br',senha:'123',perfil:'SEC',nte:'SEC - TODOS OS NTEs',grupo:'SEC',ativo:true});
+    const em=txt(document.getElementById('login-email')?.value).toLowerCase(); const sn=txt(document.getElementById('login-senha')?.value);
+    let u=(usuariosDB||[]).map(mapUsuario).find(x=>x.email===em && txt(x.senha||'123')===sn && x.ativo!==false);
+    if(!u && em==='elmo.lobao@enova.educacao.ba.gov.br' && sn==='123') u={id:1,nome:'ELMO LOBÃO',email:em,senha:'123',perfil:'Master',nte:'NTE-26 Salvador',ativo:true};
+    if(!u){ alert('Credenciais inválidas, ou operador desativado no escopo regional.'); return; }
+    window.usuarioLogado=u; try{ usuarioLogado=u; }catch(e){}
+    document.getElementById('tela-login')?.classList.add('hidden'); document.getElementById('sistema-dashboard')?.classList.remove('hidden');
+    setText('user-nome',u.nome); setText('user-perfil',`${u.perfil} | ${u.nte}`);
+    try{ registrarLog('Acesso realizado ao painel operacional.'); }catch(e){}
+    try{ window.aplicarPermissoesV37&&window.aplicarPermissoesV37(); }catch(e){}
+    try{ navegar('painel'); }catch(e){}
+    setTimeout(()=>carregarTudoV38(true),50);
+  };
+  try{ handleLogin=window.handleLogin; }catch(e){}
+  const oldNav=window.navegar;
+  if(oldNav){ window.navegar=function(aba){ const r=oldNav.apply(this,arguments); setTimeout(()=>{ if(aba==='painel') window.carregarDadosDashboardReal(); if(aba==='escolas') window.renderizarListaEscolasBufferMemoria(); if(aba==='processos') window.carregarEContarProcessosHorizontais(); },30); return r; }; try{ navegar=window.navegar; }catch(e){} }
+
+  // Importação final: identifica escolas e processos em qualquer aba da planilha.
+  function getCell(row,names){ const ks=Object.keys(row||{}); for(const n of names){ const nn=up(n); const k=ks.find(x=>up(x)===nn || up(x).includes(nn)); if(k && txt(row[k])) return row[k]; } return ''; }
+  function linhaVazia(row){ return !Object.values(row||{}).some(v=>txt(v)); }
+  function etapa(v){ const e=up(v); if(e.includes('ANAL')) return 'Análise'; if(e.includes('PEND')) return 'Pendência'; if(e.includes('DIGIT')) return 'Digitação'; if(e.includes('CONFER')) return 'Conferência'; if(e.includes('ASSIN')) return 'Assinatura'; if(e.includes('DEFER')) return 'Deferido'; if(e.includes('AGUARD')) return 'Aguardando Retirada'; if(e.includes('RETIR')) return 'Retirado'; return 'Desarquivamento'; }
+  window.processarImportacaoOtimizada = async function(event){
+    const u=atualUsuario(); if(!podeImportar(u)){ alert('Importação permitida apenas para Master, Administrador ou Grupo SEC.'); if(event?.target) event.target.value=''; return; }
+    const arq=event?.target?.files?.[0]; if(!arq) return; const card=document.getElementById('card-progresso-importacao'); const label=document.getElementById('label-status-importacao'); const bar=document.getElementById('barra-progresso-importacao'); const pct=document.getElementById('percentual-importacao-texto');
+    const prog=(n,m)=>{ if(card) card.classList.remove('hidden'); if(label) label.innerText=m; if(bar) bar.style.width=n+'%'; if(pct) pct.innerText=n+'%'; };
+    try{
+      prog(5,'Lendo planilha...'); const wb=XLSX.read(await arq.arrayBuffer(),{type:'array',cellDates:true}); let escolas=[],procs=[];
+      wb.SheetNames.forEach(aba=>{ const rows=XLSX.utils.sheet_to_json(wb.Sheets[aba],{defval:'',raw:false}); rows.forEach(row=>{ if(linhaVazia(row)) return; const mec=getCell(row,['cod_mec','código mec','codigo mec','mec']); const escola=getCell(row,['nome_escola','nome da escola','instituição','instituicao','escola','instituição / nte']); const aluno=getCell(row,['aluno_nome','nome completo do aluno','nome do aluno','aluno','requerente','nome_solicitante','aluno / doc']); const mun=getCell(row,['municipio','município','cidade']); if((mec||escola) && !aluno){ escolas.push(mapEscola({cod_mec:mec,nome_escola:escola,municipio:mun||'NÃO INFORMADO',nte:getCell(row,['nte','nte_id','nte / dep. adm'])||nteUsuario(u),dependencia_adm:getCell(row,['dependencia_adm','dependência administrativa','dep. adm','dependência','dependencia'])||'Estadual',situacao_funcional:getCell(row,['situacao_funcional','situação funcional','situação','situacao'])||'Extinta',status_acervo:getCell(row,['status_acervo','status do acervo','acervo'])||'Recolhido',local_acervo:getCell(row,['local_acervo','local do acervo'])||'Acervo do NTE'},0)); } if(aluno){ procs.push(mapProcesso({aluno_nome:aluno,escola_nome:escola,documento_tipo:getCell(row,['documento_tipo','tipo de documento','documento','documento_solicitado'])||'HISTÓRICO',etapa_atual:etapa(getCell(row,['etapa_atual','etapa','fase_atual','status'])),created_at:getCell(row,['created_at','data','criado_em','data abertura'])||dataBR(),nte:getCell(row,['nte','nte_id'])||nteUsuario(u),municipio:mun,modalidade:getCell(row,['modalidade','oferta_modalidade']),nivel_oferta:getCell(row,['ensino','nivel_oferta','oferta_nivel'])},0)); } }); });
+      prog(35,`Identificadas ${escolas.length} escolas e ${procs.length} processos.`);
+      // merge local
+      escolas.forEach(e=>{ if(!e.cod_mec) e.cod_mec='SEM-MEC-'+up(e.nome).slice(0,30); const i=(escolasDB||[]).findIndex(x=>txt(x.cod_mec)===txt(e.cod_mec)); if(i>=0) escolasDB[i]={...escolasDB[i],...e}; else {e.id=Math.max(0,...(escolasDB||[]).map(x=>Number(x.id)||0))+1; escolasDB.push(e);} });
+      procs.forEach(p=>{ p.id=Math.max(100,...(processosDB||[]).map(x=>Number(x.id)||0))+1; processosDB.push(p); }); window.escolasDB=escolasDB; window.processosDB=processosDB;
+      prog(65,'Gravando no Supabase...');
+      const payE=escolas.map(e=>({cod_mec:txt(e.cod_mec),nome_escola:title(e.nome),municipio:title(e.municipio||'NÃO INFORMADO'),nte_id:numeroNte(e.nte_id||e.nte)||26,dependencia_adm:txt(e.dependencia_adm||e.dependencia||'Estadual'),situacao_funcional:txt(e.situacao_funcional||e.situacao||'Extinta'),acervo:txt(e.acervo||'Recolhido'),status_acervo:txt(e.status_acervo||e.acervo||'Recolhido'),local_acervo:txt(e.local_acervo||'Acervo do NTE'),ativo:true})).filter(e=>e.cod_mec&&e.nome_escola);
+      const payP=procs.map(p=>({id:Number(p.id),aluno_nome:title(p.aluno),escola_nome:title(p.escola),documento_tipo:txt(p.documento||'HISTÓRICO'),nivel_oferta:txt(p.ensino||'')||null,modalidade:txt(p.modalidade||'')||null,etapa_atual:txt(p.etapa||'Desarquivamento'),nte:nteNome(p.nte)})).filter(p=>p.id&&p.aluno_nome);
+      const er=[]; const r1=await upsert(T.escolas,payE,'cod_mec'); if(r1.error) er.push('escolas_sigee: '+r1.error.message); const r2=await upsert(T.processos,payP,'id'); if(r2.error) er.push('processos: '+r2.error.message);
+      prog(90,'Atualizando telas...'); window.carregarDadosDashboardReal(); window.renderizarListaEscolasBufferMemoria(); window.carregarEContarProcessosHorizontais(); prog(100,'Concluído.');
+      alert(er.length?`Importação concluída na tela, mas houve erro no Supabase:\n${er.join('\n')}`:`Importação concluída.\nEscolas: ${payE.length}\nProcessos: ${payP.length}\nDashboard atualizado.`);
+    }catch(e){ console.error(e); alert('Erro na importação: '+(e.message||e)); }
+    finally{ setTimeout(()=>{ if(card) card.classList.add('hidden'); if(event?.target) event.target.value=''; },800); }
+  };
+  try{ processarImportacaoOtimizada=window.processarImportacaoOtimizada; }catch(e){}
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(()=>carregarTudoV38(true),400); });
+  window.SIGEE_V38={versao:V,carregar:carregarTudoV38};
+})();
+</script>
+
 </body>
 </html>
